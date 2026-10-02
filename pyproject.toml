@@ -1,0 +1,28 @@
+[project]
+name = "vitality-be"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "dade150", email = "davidecruciata@gmail.com" }
+]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "fastapi>=0.142.2",
+    "fpdf2>=2.8.9",
+    "google-cloud-aiplatform>=2.3.0",
+    "langchain>=1.4.3",
+    "langchain-community>=0.4.2",
+    "langchain-google-vertexai>=2.1.2",
+    "loguru>=0.7.3",
+    "python-dotenv>=1.2.4",
+    "supabase>=2.31.0",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+vitality-be = "vitality_be:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"

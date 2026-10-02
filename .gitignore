@@ -1,0 +1,27 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# uv specific
+uv.lock
+
+# IDEs
+.vscode/
+.idea/
+
+# OS specific
+.DS_Store
+
+# Logs and databases
+*.log
+*.sqlite3
