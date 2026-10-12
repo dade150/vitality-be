@@ -1,25 +1,23 @@
-# main.py
-from fastapi import FastAPI, Request, Depends
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
-from core.security import get_db_client
-from supabase import Client
 
-app = FastAPI()
+from vitality_be.core.config import get_settings
+from vitality_be.api.router import api_router
 
-# ControllerAdvice equivalente
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_settings()  # fail-fast: se manca una env il processo non parte
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(api_router)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Fallita richiesta {request.method} {request.url} | Errore: {exc}")
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Si è verificato un errore interno. Riprova più tardi."},
-    )
-
-# Esempio di endpoint protetto che usa il client autenticato e i log
-@app.get("/api/test")
-def test_endpoint(supabase: Client = Depends(get_db_client)):
-    logger.info("Chiamata all'endpoint di test effettuata")
-    # Il backend esegue la query con i permessi dell'utente chiamante
-    response = supabase.table("tua_tabella").select("*").execute()
-    return {"data": response.data}
+    logger.exception(f"Fallita richiesta {request.method} {request.url.path}")
+    return JSONResponse(500, {"detail": "Si è verificato un errore interno. Riprova più tardi."})

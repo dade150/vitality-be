@@ -1,20 +1,53 @@
-# core/security.py
-import os
-from fastapi import Security, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from supabase import create_client, Client
+from dataclasses import dataclass, field
+from functools import lru_cache
+from typing import Annotated
 
-security = HTTPBearer()
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from loguru import logger
+from supabase import AuthApiError, Client, create_client
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+from vitality_be.core.config import get_settings
 
-def get_db_client(credentials: HTTPAuthorizationCredentials = Security(security)) -> Client:
-    token = credentials.credentials
+_bearer = HTTPBearer(auto_error=False)
+
+
+@dataclass(frozen=True)
+class CurrentUser:
+    id: str
+    email: str | None
+    # serve solo a costruire il client RLS; repr=False così non finisce nei log
+    token: str = field(repr=False)
+
+
+def _unauthorized(detail: str) -> HTTPException:
+    return HTTPException(401, detail, headers={"WWW-Authenticate": "Bearer"})
+
+
+@lru_cache
+def get_auth_client() -> Client:
+    """Client condiviso, SOLO per auth.get_user(). Non impostargli mai un token."""
+    s = get_settings()
+    return create_client(s.supabase_url, s.supabase_anon_key)
+
+
+def get_current_user(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> CurrentUser:
+    if creds is None:
+        raise _unauthorized("Token mancante")
     try:
-        # Inizializza il client e inietta il token dell'utente per le RLS
-        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        supabase.postgrest.auth(token)
-        return supabase
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Token non valido o scaduto")
+        # Supabase verifica firma + scadenza + sessione non revocata
+        resp = get_auth_client().auth.get_user(jwt=creds.credentials)
+    except AuthApiError:
+        raise _unauthorized("Token non valido o scaduto")
+    except Exception:
+        logger.exception("Supabase Auth non raggiungibile")
+        raise HTTPException(503, "Servizio di autenticazione non disponibile")
+
+    if resp is None or resp.user is None:
+        raise _unauthorized("Token non valido o scaduto")
+    return CurrentUser(id=resp.user.id, email=resp.user.email, token=creds.credentials)
+
+
+CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]
