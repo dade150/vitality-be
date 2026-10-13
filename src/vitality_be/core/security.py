@@ -40,10 +40,13 @@ def get_current_user(
         # Supabase verifica firma + scadenza + sessione non revocata
         resp = get_auth_client().auth.get_user(jwt=creds.credentials)
     except AuthApiError:
-        raise _unauthorized("Token non valido o scaduto")
-    except Exception:
-        logger.exception("Supabase Auth non raggiungibile")
-        raise HTTPException(503, "Servizio di autenticazione non disponibile")
+        raise _unauthorized("Token non valido o scaduto") from None
+    except Exception as exc:
+        # MODIFICA rispetto all'originale: logger.exception stampava l'intera traceback (e
+        # il messaggio dell'eccezione di rete); qui solo il tipo, coerente con la regola
+        # "nessun token nei log". Anche `from None` per non concatenare l'eccezione.
+        logger.error("Supabase Auth non raggiungibile exc={}", type(exc).__name__)
+        raise HTTPException(503, "Servizio di autenticazione non disponibile") from None
 
     if resp is None or resp.user is None:
         raise _unauthorized("Token non valido o scaduto")

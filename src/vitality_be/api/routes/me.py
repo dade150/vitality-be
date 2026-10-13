@@ -1,7 +1,7 @@
 # api/routes/me.py
 from fastapi import APIRouter
 from pydantic import BaseModel
-from src.vitality_be.core.security import CurrentUserDep
+from vitality_be.core.security import CurrentUserDep
 
 router = APIRouter(tags=["me"])
 

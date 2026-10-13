@@ -12,6 +12,13 @@ __pycache__/
 venv/
 env/
 
+# GCP credentials (mai nel repo)
+service-account*.json
+gcp-key*.json
+
+# Tests
+.pytest_cache/
+
 # uv specific
 uv.lock
 
