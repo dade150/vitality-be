@@ -1,261 +1,307 @@
 #!/usr/bin/env python3
 """
-Estrattore Modulare per Linee Guida Mediche (PDF) tramite PyMuPDF e Regex.
+Estrae dal PDF "IDF Global Clinical Practice Recommendations for Managing Type 2 Diabetes - 2025":
 
-Genera tre file nella cartella di output:
-  1. raccomandazioni_sintetiche_ada.md (Elenco puntato con tag [A-E])
-  2. raccomandazioni_estese_rag.md     (H3, testo, forza, giustificazione in blockquote)
-  3. raccomandazioni.json              (Dati strutturati)
+  idf2025-chN_recs.md   le raccomandazioni di ogni capitolo (tabelle "RECOMMENDATIONS":
+                        colonne Optimal Care / Basic Care)                  [da curare e indicizzare]
+  idf2025-chN_full.md   il testo del capitolo senza bibliografia, citazioni e intestazioni [archivio]
+
+Stile uguale agli script ADA e SID-AMD: front matter YAML, nessuna AI, controlli finali.
+Nota: "Optimal Care" = contesti con risorse adeguate (e' la colonna rilevante per l'Italia);
+      "Basic Care" = contesti con risorse limitate.
 
 Uso:
-  uv run --with pymupdf python extract_guidelines.py linea_guida.pdf --outdir estratti
+  uv run --with pymupdf python idf_pdf_extract.py IDF_Rec_2025.pdf --outdir extracted/idf
+  uv run --with pymupdf python idf_pdf_extract.py IDF_Rec_2025.pdf --outdir extracted/idf --optimal-only --no-full
 """
-
 import argparse
 import datetime
-import json
 import pathlib
 import re
 import sys
+from collections import Counter
 
 try:
     import pymupdf as fitz
 except ImportError:
     import fitz  # type: ignore
 
-# ==============================================================================
-# CONFIGURAZIONE REGEX
-# ==============================================================================
-# 1. Identifica l'inizio di una raccomandazione (es. "Raccomandazione 1.1", "Recommendation 2", "REC:")
-REC_START_RE = re.compile(r"^(?:Raccomandazione|Recommendation|REC)[\s:]*(\d+(?:\.\d+)*)?\.?\s*(.*)$", re.I)
-
-# 2. Identifica la riga della forza/evidenza (supporta format italiani e inglesi)
-STRENGTH_EVIDENCE_RE = re.compile(
-    r"(?:Forza|Classe|Strength|Grade)[\s:]*(.*?)\s*(?:/|\||,|-)?\s*(?:Qualit[aà]|Livello|Prove|Level(?: of evidence)?|Evidence)[\s:]*(.*)", re.I
-)
-
-# 3. Identifica l'inizio della motivazione
-JUSTIFICATION_START_RE = re.compile(r"^(?:Giustificazione|Motivazione|Rationale|Justification|Discussion)[\s:]*(.*)$", re.I)
-
-# Parole di fine blocco o sezioni da saltare (es. bibliografia)
-END_OF_RECS_RE = re.compile(r"^(?:Bibliografia|References|Indice)\s*$", re.I)
+CHAPTERS = {
+    1: "Detection of diabetes and intermediate hyperglycaemia, and prevention of type 2 diabetes",
+    2: "Glycaemic control assessment and targets in type 2 diabetes",
+    3: "Blood glucose-lowering therapies - non-insulin options for type 2 diabetes",
+    4: "Blood glucose-lowering therapies - insulin options for type 2 diabetes",
+    5: "Weight control in type 2 diabetes mellitus management",
+    6: "Cardio-renal protection in type 2 diabetes",
+    7: "Management of metabolic dysfunction-associated steatotic liver disease (MASLD) in type 2 diabetes",
+}
+HEADER_PREFIX = "IDF Global Clinical Practice Recommendations"
+TERMINAL = (".", ":", ";", "?", "!")
+BULLETS = ("•", "o", "–", "-")
 
 
-# ==============================================================================
-# FUNZIONI DI UTILITA'
-# ==============================================================================
+# ------------------------------------------------------------------ utilità
 def squash(s):
-    """Rimuove spazi multipli e pulisce la stringa."""
     return re.sub(r"\s+", " ", s).strip()
 
 
-def map_evidence_to_tag(evidence_text):
-    """Mappa i livelli di evidenza testuali nei tag standard [A-E]."""
-    text = evidence_text.lower()
-    if "alta" in text or "livello a" in text:
-        return "[A]"
-    elif "moderata" in text or "livello b" in text:
-        return "[B]"
-    elif "bassa" in text or "livello c" in text:
-        return "[C]"
-    elif "molto bassa" in text or "consenso" in text or "livello e" in text:
-        return "[E]"
-    return "[U]"  # Unclassified/Unknown
+def inside(word_or_rect, rect, pad=1.5):
+    x0, y0, x1, y1 = word_or_rect[:4]
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    return rect.x0 - pad <= cx <= rect.x1 + pad and rect.y0 - pad <= cy <= rect.y1 + pad
 
 
-def page_lines(page):
-    """Estrae le righe della pagina escludendo intestazioni e piè di pagina numerici."""
+def cell_items(page, rect, exclude=()):
+    """Testo di una cella come lista di (tipo, testo): 'b' = voce di elenco, 'p' = paragrafo."""
+    words = [w for w in page.get_text("words", clip=rect) if not any(inside(w, ex) for ex in exclude)]
+    words.sort(key=lambda w: (w[5], w[6], w[7]))
+    lines, key = [], None
+    for w in words:
+        k = (w[5], w[6])
+        if k != key:
+            lines.append([])
+            key = k
+        lines[-1].append(w[4])
+    items = []
+    for ln in lines:
+        txt = " ".join(ln).strip()
+        if not txt:
+            continue
+        if txt[0] in "•" or txt.startswith("• "):
+            items.append(["b", txt.lstrip("• ").strip()])
+        elif items and not items[-1][1].rstrip().endswith(TERMINAL) and (txt[0].islower() or txt[0].isdigit()):
+            items[-1][1] += " " + txt                  # riga di continuazione
+        elif items and items[-1][0] == "b" and not items[-1][1].rstrip().endswith(TERMINAL):
+            items[-1][1] += " " + txt
+        else:
+            items.append(["p", txt])
+    return [(t, squash(x)) for t, x in items]
+
+
+def items_md(items, indent=""):
     out = []
-    lines = page.get_text("text").split("\n")
-    for idx, raw in enumerate(lines):
-        s = raw.strip()
-        if not s:
-            continue
-        # Salta numeri di pagina o intestazioni ricorrenti nelle prime/ultime righe
-        if re.fullmatch(r"\d{1,3}", s) and (idx < 5 or idx > len(lines) - 5):
-            continue
-        out.append(s)
+    for t, x in items:
+        out.append(f"{indent}- {x}" if t == "b" else f"{indent}{x}")
     return out
 
 
-# ==============================================================================
-# MODULO DI ESTRAZIONE E PARSING
-# ==============================================================================
-def find_rec_range(doc):
-    """Identifica l'intervallo di pagine contenente le raccomandazioni, saltando indice/copertine."""
-    start_page = end_page = None
-
-    for i, p in enumerate(doc):
-        text = p.get_text("text")
-        # Trova la prima pagina che contiene esplicitamente una raccomandazione formattata
-        if start_page is None and re.search(r"(?:Raccomandazione|REC)\s*\d+\.\d+", text, re.I):
-            # Assicuriamoci che non sia l'indice (che di solito ha molti numeri di pagina o puntini)
-            if not re.search(r"\.{5,}", text):
-                start_page = i
-
-        # Condizione di uscita (es. Inizio bibliografia)
-        if start_page is not None and re.search(r"^(?:Bibliografia|References)\s*$", text, re.M | re.I):
-            end_page = i
-            break
-
-    if start_page is None:
-        print("[AVVISO] Impossibile determinare l'inizio esatto tramite Regex. Parto dalla pagina 1.")
-        start_page = 0
-    if end_page is None:
-        end_page = len(doc) - 1
-
-    return start_page, end_page
+def inner_table_md(page, table):
+    rows = []
+    for row in table.rows:
+        cells = []
+        for c in row.cells:
+            cells.append(squash(" ".join(x for _, x in cell_items(page, fitz.Rect(c)))) if c else "")
+        rows.append(cells)
+    rows = [r for r in rows if any(r)]
+    if len(rows) < 2:
+        return []
+    n = max(len(r) for r in rows)
+    rows = [r + [""] * (n - len(r)) for r in rows]
+    md = ["| " + " | ".join(rows[0]) + " |", "|" + "---|" * n]
+    md += ["| " + " | ".join(c.replace("|", "/") for c in r) + " |" for r in rows[1:]]
+    return md
 
 
-def parse_recommendations(doc, start_page, end_page):
-    """Macchina a stati finiti per analizzare il testo con Regex estraendo i blocchi semantici."""
-    lines = []
-    for i in range(start_page, end_page + 1):
-        for s in page_lines(doc[i]):
-            lines.append((i + 1, s))
+# ------------------------------------------------------------------ individuazione capitoli
+def find_chapters(doc):
+    """{n: pagina (1-based) con la tabella RECOMMENDATIONS}. Numerazione per ordine di apparizione."""
+    pages = [i + 1 for i, p in enumerate(doc)
+             if i > 8 and re.search(r"^RECOMMENDATIONS\s*$", p.get_text(), re.M)]
+    if len(pages) != len(CHAPTERS):
+        print(f"[AVVISO] trovate {len(pages)} pagine 'RECOMMENDATIONS' invece di {len(CHAPTERS)}: "
+              "controllare la numerazione dei capitoli")
+    return {n + 1: pg for n, pg in enumerate(pages)}
 
-    recs = []
-    current_rec = None
-    state = None  # Stati possibili: "REC_TEXT", "JUSTIFICATION"
 
-    for pg, s in lines:
-        if END_OF_RECS_RE.match(s):
-            break
+def chapter_ranges(doc, recs_pages):
+    ns = sorted(recs_pages)
+    ranges = {}
+    for j, n in enumerate(ns):
+        start = recs_pages[n] + 1
+        end = (recs_pages[ns[j + 1]] - 2) if j + 1 < len(ns) else len(doc)
+        ranges[n] = (start, end)
+    return ranges
 
-        # 1. Intercetta una nuova raccomandazione
-        rec_match = REC_START_RE.match(s)
-        if rec_match:
-            if current_rec:
-                recs.append(current_rec)
 
-            rec_id = rec_match.group(1)
-            rec_text = rec_match.group(2)
+# ------------------------------------------------------------------ tabella delle raccomandazioni
+def parse_recs_table(doc, page_no):
+    page = doc[page_no - 1]
+    tabs = page.find_tables().tables
+    if not tabs:
+        return [], ["tabella non trovata"]
+    outer = max(tabs, key=lambda t: fitz.Rect(t.bbox).get_area())
+    ob = fitz.Rect(outer.bbox)
+    inners = [t for t in tabs if t is not outer and fitz.Rect(t.bbox) in ob]
+    inner_rects = [fitz.Rect(t.bbox) for t in inners]
 
-            current_rec = {
-                "id": rec_id,
-                "testo": rec_text,
-                "forza": "Non specificata",
-                "evidenza": "Non specificata",
-                "tag_evidenza": "[U]",
-                "giustificazione": "",
-                "pagina": pg
-            }
-            state = "REC_TEXT"
+    rows_out, warns = [], []
+    header = outer.rows[0].cells if outer.rows else []
+    w_opt = (header[1][2] - header[1][0]) if len(header) > 1 and header[1] else 0
+    prev_label = ""
+    for r in outer.rows[1:]:
+        cells = r.cells
+        if len(cells) < 2:
             continue
 
-        if not current_rec:
-            continue
+        def col(i, ex=inner_rects):
+            c = cells[i] if i < len(cells) else None
+            if not c:
+                return None, []
+            rect = fitz.Rect(c)
+            return rect, cell_items(page, rect, exclude=ex)
 
-        # 2. Intercetta Forza ed Evidenza
-        strength_match = STRENGTH_EVIDENCE_RE.search(s)
-        if strength_match:
-            current_rec["forza"] = squash(strength_match.group(1))
-            evidenza_text = squash(strength_match.group(2))
-            current_rec["evidenza"] = evidenza_text
-            current_rec["tag_evidenza"] = map_evidence_to_tag(evidenza_text)
-            continue
+        _, label_items = col(0, ())
+        label = squash(" ".join(x for _, x in label_items)) or prev_label
+        if label:
+            prev_label = label
+        r1, opt = col(1)
+        r2, basic = col(2)
+        shared = bool(r1 is not None and w_opt and (r1.x1 - r1.x0) > 1.4 * w_opt and not basic)
 
-        # 3. Intercetta l'inizio della Giustificazione/Motivazione
-        just_match = JUSTIFICATION_START_RE.match(s)
-        if just_match:
-            state = "JUSTIFICATION"
-            current_rec["giustificazione"] += just_match.group(1) + " "
-            continue
-
-        # 4. Accodamento testo allo stato corrente
-        if state == "REC_TEXT":
-            current_rec["testo"] += " " + s
-        elif state == "JUSTIFICATION":
-            current_rec["giustificazione"] += " " + s
-
-    # Appendi l'ultima raccomandazione
-    if current_rec:
-        recs.append(current_rec)
-
-    # Pulisci i testi estratti
-    for r in recs:
-        r["testo"] = squash(r["testo"])
-        r["giustificazione"] = squash(r["giustificazione"])
-
-    return recs
+        # tabelle annidate: le rendo come tabella markdown dentro la cella Optimal
+        extra = []
+        if r1 is not None:
+            for it, ir in zip(inners, inner_rects):
+                if inside(ir, r1):
+                    extra += inner_table_md(page, it)
+        rows_out.append({"label": label, "optimal": opt, "basic": basic, "shared": shared, "extra": extra})
+    if not rows_out:
+        warns.append("nessuna riga letta")
+    return rows_out, warns
 
 
-# ==============================================================================
-# MODULO DI ESPORTAZIONE FILE
-# ==============================================================================
-def get_front_matter(title):
-    """Genera il Front Matter YAML per i file Markdown."""
+# ------------------------------------------------------------------ testo del capitolo
+def chapter_text(doc, start, end):
+    pages = list(range(start, end + 1))
+    # intestazioni correnti: righe ripetute nelle prime 5 righe di >=3 pagine
+    first = Counter()
+    for pn in pages:
+        top = [l.strip() for l in doc[pn - 1].get_text().split("\n") if l.strip()][:5]
+        for l in set(top):
+            first[l] += 1
+    running = {l for l, c in first.items() if c >= 3 and not l.isdigit()}
+
+    out = []
+    for pn in pages:
+        page = doc[pn - 1]
+        for b in page.get_text("dict")["blocks"]:
+            if b["type"] != 0:
+                continue
+            block_lines = []
+            for ln in b["lines"]:
+                spans = [s for s in ln["spans"] if s["size"] >= 7.0]   # toglie i numeri di citazione
+                txt = squash("".join(s["text"] for s in spans))
+                if not txt:
+                    continue
+                bold = all("Bold" in s["font"] for s in spans if s["text"].strip())
+                block_lines.append((txt, bold))
+            if not block_lines:
+                continue
+            texts = [t for t, _ in block_lines]
+            joined = squash(" ".join(texts))
+            if joined.upper() == "REFERENCES":
+                return out, True
+            if (joined.startswith(HEADER_PREFIX) or re.fullmatch(r"\d{1,3}", joined)
+                    or re.fullmatch(r"Chapter \d", joined) or joined in running):
+                continue
+            # elimina righe di intestazione dentro il blocco
+            block_lines = [(t, bd) for t, bd in block_lines
+                           if not (t.startswith(HEADER_PREFIX) or re.fullmatch(r"\d{1,3}", t)
+                                   or re.fullmatch(r"Chapter \d", t) or t in running)]
+            if not block_lines:
+                continue
+            if all(bd for _, bd in block_lines):
+                head = squash(" ".join(t for t, _ in block_lines))
+                out.append(("h", 2 if head.isupper() else 3, head))
+            else:
+                out.append(("p", squash(" ".join(t for t, _ in block_lines))))
+    return out, False
+
+
+# ------------------------------------------------------------------ scrittura
+def front(name, n, title, kind, extra=""):
     today = datetime.date.today().isoformat()
-    return (
-        "---\n"
-        f"doc_id: {title.lower().replace(' ', '-')}\n"
-        f"source_name: \"{title}\"\n"
-        "doc_type: clinical_guideline\n"
-        "audience: clinician\n"
-        f"last_verified: {today}\n"
-        "---\n\n"
-    )
+    return ("---\n"
+            f"doc_id: {name}-{kind}\n"
+            f"source_name: \"IDF Global Clinical Practice Recommendations for Managing Type 2 Diabetes 2025 - Chapter {n}: {title}\"\n"
+            "source_org: IDF\n"
+            "source_file: IDF_Rec_2025.pdf\n"
+            "doc_type: clinical_guideline\n"
+            "audience: clinician\n"
+            "jurisdiction: INT\n"
+            "language: en\n"
+            "diabetes_type: [T2]\n"
+            "population: adulti (documento globale, non specifico per anziani fragili)\n"
+            "resource_setting_note: \"Optimal Care = contesti con risorse adeguate (rilevante per l'Italia); Basic Care = risorse limitate\"\n"
+            f"last_verified: {today}\n"
+            "can_quote_numbers: false\n"
+            "license_note: \"IDF: verificare condizioni di riuso e se serve il permesso scritto prima di pubblicare\"\n"
+            f"{extra}---\n\n")
 
 
-def write_outputs(recs, outdir, doc_title):
-    outdir.mkdir(parents=True, exist_ok=True)
-    fm = get_front_matter(doc_title)
-
-    # 1. raccomandazioni_sintetiche_ada.md
-    synth_lines = [fm, f"# {doc_title} - Sintesi Raccomandazioni\n"]
-    for r in recs:
-        synth_lines.append(f"- **{r['id']}** {r['testo']} {r['tag_evidenza']}")
-
-    (outdir / "raccomandazioni_sintetiche_ada.md").write_text("\n".join(synth_lines) + "\n", encoding="utf-8")
-
-    # 2. raccomandazioni_estese_rag.md
-    ext_lines = [fm, f"# {doc_title} - Raccomandazioni Estese con Motivazione\n"]
-    for r in recs:
-        ext_lines.append(f"### Raccomandazione {r['id']}\n")
-        ext_lines.append(f"**Testo:** {r['testo']}\n")
-        ext_lines.append(
-            f"**Forza:** {r['forza']} | **Evidenza:** {r['evidenza']} ({r['tag_evidenza']}) | **Pagina:** {r['pagina']}\n")
-        if r['giustificazione']:
-            ext_lines.append(f"> **Motivazione:** {r['giustificazione']}\n")
-        ext_lines.append("---\n")
-
-    (outdir / "raccomandazioni_estese_rag.md").write_text("\n".join(ext_lines) + "\n", encoding="utf-8")
-
-    # 3. raccomandazioni.json
-    (outdir / "raccomandazioni.json").write_text(
-        json.dumps(recs, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+def write_recs(path, n, title, rows, optimal_only):
+    L = [front("idf2025-ch%d" % n, n, title, "recs"), f"# Capitolo {n} - {title} - raccomandazioni\n"]
+    for r in rows:
+        L.append(f"\n## {r['label'] or '(senza etichetta)'}\n")
+        if r["shared"]:
+            L.append("**Optimal Care e Basic Care (indicazione unica)**")
+            L += items_md(r["optimal"])
+        else:
+            L.append("**Optimal Care**")
+            L += items_md(r["optimal"]) if r["optimal"] else ["- (nessuna indicazione)"]
+            if not optimal_only:
+                L.append("\n**Basic Care**")
+                L += items_md(r["basic"]) if r["basic"] else ["- (nessuna indicazione / vedi Optimal Care)"]
+        if r["extra"]:
+            L.append("")
+            L += r["extra"]
+    path.write_text("\n".join(L) + "\n", encoding="utf-8")
 
 
-# ==============================================================================
-# MAIN
-# ==============================================================================
+def write_full(path, n, title, blocks):
+    L = [front("idf2025-ch%d" % n, n, title, "full", extra="archive_only: true\n"), f"# Capitolo {n} - {title}\n"]
+    for b in blocks:
+        if b[0] == "h":
+            L.append("\n" + "#" * (b[1] if b[1] > 1 else 2) + " " + b[2] + "\n")
+        else:
+            L.append(b[1] + "\n")
+    path.write_text("\n".join(L) + "\n", encoding="utf-8")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("pdf", help="Percorso del file PDF da analizzare")
-    ap.add_argument("--outdir", default="estratti", help="Cartella di destinazione dei file estratti")
-    ap.add_argument("--title", default="Documento Linee Guida", help="Titolo del documento per il Front Matter")
+    ap.add_argument("pdf")
+    ap.add_argument("--outdir", default="idf_out")
+    ap.add_argument("--no-full", action="store_true", help="non scrivere i file _full")
+    ap.add_argument("--optimal-only", action="store_true", help="nei _recs tieni solo la colonna Optimal Care")
     args = ap.parse_args()
 
     path = pathlib.Path(args.pdf)
     if not path.exists():
         sys.exit(f"[ERRORE] File non trovato: {path}")
-
-    print(f"Apertura del PDF: {path.name}...")
     doc = fitz.open(path)
+    recs_pages = find_chapters(doc)
+    if not recs_pages:
+        sys.exit("[ERRORE] Nessuna pagina 'RECOMMENDATIONS' trovata: e' il PDF IDF 2025 giusto?")
+    ranges = chapter_ranges(doc, recs_pages)
+    outdir = pathlib.Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
 
-    start_pg, end_pg = find_rec_range(doc)
-    print(f"Intervallo di analisi individuato: pagine {start_pg + 1} - {end_pg + 1}")
-
-    recs = parse_recommendations(doc, start_pg, end_pg)
-
-    if not recs:
-        print("[ATTENZIONE] Nessuna raccomandazione intercettata. Verifica le Regex rispetto al formato del PDF.")
-    else:
-        outdir = pathlib.Path(args.outdir)
-        write_outputs(recs, outdir, args.title)
-        print(f"[OK] Estratte {len(recs)} raccomandazioni.")
-        print(f"[OK] File salvati correttamente nella directory: {outdir}/")
+    for n in sorted(recs_pages):
+        title = CHAPTERS.get(n, f"Chapter {n}")
+        rows, warns = parse_recs_table(doc, recs_pages[n])
+        write_recs(outdir / f"idf2025-ch{n}_recs.md", n, title, rows, args.optimal_only)
+        msg = f"[OK] cap. {n}: {len(rows)} righe di raccomandazioni (pag. {recs_pages[n]})"
+        if not args.no_full:
+            start, end = ranges[n]
+            blocks, found_refs = chapter_text(doc, start, end)
+            write_full(outdir / f"idf2025-ch{n}_full.md", n, title, blocks)
+            msg += f"; testo {sum(len(b[-1].split()) for b in blocks)} parole"
+            if not found_refs:
+                msg += " (ATTENZIONE: bibliografia non individuata, controllare la fine del file)"
+        print(msg)
+        for w in warns:
+            print("     ATTENZIONE:", w)
 
 
 if __name__ == "__main__":
