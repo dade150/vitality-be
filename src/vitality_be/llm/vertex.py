@@ -1,3 +1,7 @@
+from google import genai
+
+# Inizializzazione corretta per Vertex AI con ADC
+client = genai.Client(vertexai=True, location="europe-west1")
 # llm/vertex.py
 """Provider Vertex AI (Gemini) con SDK `google-genai`.
 
@@ -85,7 +89,7 @@ class VertexProvider:
             max_output_tokens=max_output_tokens,
             temperature=temperature,
             safety_settings=SAFETY_SETTINGS,
-            thinking_config=types.ThinkingConfig(thinking_level=_THINKING[thinking_level]),
+            #thinking_config=types.ThinkingConfig(thinking_level=_THINKING[thinking_level]),
         )
 
     async def aclose(self) -> None:

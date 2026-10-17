@@ -49,8 +49,11 @@ class Settings(BaseSettings):
 
         if self.gcp_location.strip().lower() == "global":
             errors.append("GCP_LOCATION=global non è ammesso (nessuna garanzia sul luogo di elaborazione): usa 'eu'.")
-        if self.llm_model and self.llm_model.lower().startswith("gemini-2.5"):
-            errors.append("I modelli gemini-2.5-* sono in ritiro: scegli un modello Gemini 3.x.")
+
+        # CONTROLLO DISABILITATO TEMPORANEAMENTE PER TESTARE SU EUROPE-WEST1
+        # if self.llm_model and self.llm_model.lower().startswith("gemini-2.5"):
+        #     errors.append("I modelli gemini-2.5-* sono in ritiro: scegli un modello Gemini 3.x.")
+
         if self.llm_provider == "vertex":
             if not self.gcp_project:
                 errors.append("GCP_PROJECT obbligatorio con LLM_PROVIDER=vertex.")

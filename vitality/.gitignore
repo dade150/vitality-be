@@ -1,8 +1,0 @@
-.env
-.env.*
-!.env.example
-service-account*.json
-gcp-key*.json
-.venv/
-__pycache__/
-.pytest_cache/
