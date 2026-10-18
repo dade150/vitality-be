@@ -55,7 +55,7 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 **Basic Care**
 - Select from a limited range of affordable and continuously available insulin
 
-## Insulin initiation
+## Insulin initiation (2)
 
 **Optimal Care**
 - Commence with single daily injection of basal analogue insulin
@@ -71,16 +71,16 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 
 **Optimal Care**
 - Options include:
-- Basal bolus
-- Premixed insulin
-- Add GLP-1RA (either separately or switch to FRC)
-- Insulin pump
+  - Basal bolus
+  - Premixed insulin
+  - Add GLP-1RA (either separately or switch to FRC)
+  - Insulin pump
 
 **Basic Care**
 - Options include:
-- Basal bolus
-- Premixed human insulin
-- Other affordable and available blood glucose-lowering therapies
+  - Basal bolus
+  - Premixed human insulin
+  - Other affordable and available blood glucose-lowering therapies
 
 ## Insulin deintensification
 

@@ -23,11 +23,17 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 
 **Optimal Care**
 - Suspect MASLD in all people with T2DM, especially if overweight or obese; LFTs are abnormal
-- Screen for MASLD-related fibrosis - FIB-4 score - Imaging if FIB-4 result elevated - VCTE - MRE
+- Screen for MASLD-related fibrosis
+  - FIB-4 score
+  - Imaging if FIB-4 result elevated
+  - VCTE
+  - MRE
 
 **Basic Care**
 - Suspect MASLD in all people with T2DM, especially if overweight or obese; LFTs are abnormal
-- Screen for MASLD-related fibrosis - FIB-4 score - Imaging if FIB-4 result elevated (if available)
+- Screen for MASLD-related fibrosis
+  - FIB-4 score
+  - Imaging if FIB-4 result elevated (if available)
 
 ## Management of people with T2DM and at-risk MASLD
 
@@ -35,11 +41,15 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 - Implement Pillars of Diabetes Care (Chapter 6)
 - At-risk MASLD determined by FIB-4 and imaging
 - Promote healthy lifestyle change and at least 5% weight loss if overweight or obese
-- Specific MASLD therapy - Resmetirom (where approved) - GLP-1RAs (including semaglutide, liraglutide, and tirzepatide)
+- Specific MASLD therapy
+  - Resmetirom (where approved)
+  - GLP-1RAs (including semaglutide, liraglutide, and tirzepatide)
 - Consider metabolic bariatric surgery
 
 **Basic Care**
 - Implement Pillars of Diabetes Care (Chapter 6)
 - At-risk MASLD determined by FIB-4 alone or with imaging if available
 - Promote healthy lifestyle change and at least 5% weight loss if overweight or obese
-- Specific MASLD therapy - Pioglitazone (if available and not contraindicated) - SGLT2i for weight loss and cardio- renal protection
+- Specific MASLD therapy
+  - Pioglitazone (if available and not contraindicated)
+  - SGLT2i for weight loss and cardio- renal protection

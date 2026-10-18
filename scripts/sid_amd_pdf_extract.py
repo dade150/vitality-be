@@ -344,7 +344,7 @@ def write_all(recs, picos, outdir):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pdf")
-    ap.add_argument("--outdir", default="sid_out")
+    ap.add_argument("--outdir", default="sid-adm")
     ap.add_argument("--no-pico", action="store_true", help="salta gli allegati per quesito")
     args = ap.parse_args()
 

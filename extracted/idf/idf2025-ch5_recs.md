@@ -51,9 +51,9 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 **Optimal Care**
 - Lifestyle change
 - Consider:
-- Metformin
-- SGLT2i/incretin-based therapy
-- Metabolic bariatric surgery
+  - Metformin
+  - SGLT2i/incretin-based therapy
+  - Metabolic bariatric surgery
 
 **Basic Care**
 - Lifestyle change

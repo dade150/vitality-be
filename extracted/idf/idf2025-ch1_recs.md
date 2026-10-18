@@ -40,13 +40,15 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 
 **Optimal Care e Basic Care (indicazione unica)**
 Target group: determine locally
-Risk assessment:
+**Risk assessment:**
 - Risk scores – developed locally or adapted to local factors
 - Risk factors – excessive weight, family history, gestational diabetes history, etc.
-Biochemical testing options:
+**Biochemical testing options:**
 - FPG
 - 2 h OGTT
-- HbA1c 1 h PG during 75 g OGTT is an emerging option Select the screening protocol based on available resources and capacity to intervene (in those identified as high-risk) with a diabetes prevention programme
+- HbA1c
+1 h PG during 75 g OGTT is an emerging option
+Select the screening protocol based on available resources and capacity to intervene (in those identified as high-risk) with a diabetes prevention programme
 
 ## Diabetes prevention programmes for high-risk individuals
 

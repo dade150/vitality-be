@@ -19,28 +19,20 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 # Capitolo 3 - Blood glucose-lowering therapies - non-insulin options for type 2 diabetes - raccomandazioni
 
 
-## At diagnosis
-
-**Optimal Care**
-- (nessuna indicazione)
-
-**Basic Care**
-- (nessuna indicazione / vedi Optimal Care)
-
-## No complications or low cardio-renal risk In obese persons
+## At diagnosis - No complications or low cardio-renal risk
 
 **Optimal Care**
 - Lifestyle modification
 - Metformin
 - Combination therapy is an option
-- Consider metformin and GLP-1RA
+- *In obese persons:* Consider metformin and GLP-1RA
 
 **Basic Care**
 - Lifestyle modification
 - Metformin
-- Consider metformin and SGLT2i*
+- *In obese persons:* Consider metformin and SGLT2i*
 
-## Risk of or with cardio-renal complications
+## At diagnosis - Risk of or with cardio-renal complications
 
 **Optimal Care**
 - Lifestyle modification
@@ -50,38 +42,30 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 - Lifestyle modification
 - Metformin and SGLT2i*
 
-## On therapy and not at glycaemic target
+## On therapy and not at glycaemic target - No complications or low cardio-renal risk
 
 **Optimal Care**
-- (nessuna indicazione)
-
-**Basic Care**
-- (nessuna indicazione / vedi Optimal Care)
-
-## No complications or low cardio-renal risk
-
-**Optimal Care**
-- Reinforce lifestyle modification If only on metformin
-- Add SGLT2i In obese persons
-- Add GLP-1RA If on combination therapy
-- Add an SGLT2i or GLP-1RA
+- Reinforce lifestyle modification
+- *If only on metformin:* Add SGLT2i
+- *In obese persons:* Add GLP-1RA
+- *If on combination therapy:* Add an SGLT2i or GLP-1RA
 - If already taking an SGLT2i or GLP-1RA, add an agent from another BGL therapy
 
 **Basic Care**
-- Reinforce lifestyle modification If only on metformin
-- Add SGLT2i* or any available BGL therapy If on combination therapy
-- Add SGLT2i* or any available BGL therapy
+- Reinforce lifestyle modification
+- *If only on metformin:* Add SGLT2i* or any available BGL therapy
+- *If on combination therapy:* Add SGLT2i* or any available BGL therapy
 
-## Risk of or with cardio-renal complications
+## On therapy and not at glycaemic target - Risk of or with cardio-renal complications
 
 **Optimal Care**
-- Reinforce lifestyle modification If only on metformin:
-- Add SGLT2i or GLP-1RA In obese persons
-- Add GLP-1RA If on combination therapy
-- Add an SGLT2i or GLP-1RA
+- Reinforce lifestyle modification
+- *If only on metformin:* Add SGLT2i or GLP-1RA
+- *In obese persons:* Add GLP-1RA
+- *If on combination therapy:* Add an SGLT2i or GLP-1RA
 - If already taking an SGLT2i or GLP-1RA, add an agent from another BGL therapy
 
 **Basic Care**
-- Reinforce lifestyle modification If only on metformin:
-- Add SGLT2i* or any available BGL therapy If on combination therapy
-- Add SGLT2i* or any available BGL therapy
+- Reinforce lifestyle modification
+- *If only on metformin:* Add SGLT2i* or any available BGL therapy
+- *If on combination therapy:* Add SGLT2i* or any available BGL therapy

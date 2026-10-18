@@ -19,21 +19,15 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 # Capitolo 6 - Cardio-renal protection in type 2 diabetes - raccomandazioni
 
 
-## Atherosclerotic Cardiovascular Disease (ASCVD)
-
-**Optimal Care**
-- (nessuna indicazione)
-
-**Basic Care**
-- (nessuna indicazione / vedi Optimal Care)
-
-## Screening/risk assessment
+## Atherosclerotic Cardiovascular Disease (ASCVD) - Screening/risk assessment
 
 **Optimal Care e Basic Care (indicazione unica)**
 - History of ASCVD
-- High-risk assessment - Age plus 2 risk factors - CVD risk score
+- High-risk assessment
+  - Age plus 2 risk factors
+  - CVD risk score
 
-## Management
+## Atherosclerotic Cardiovascular Disease (ASCVD) - Management
 
 **Optimal Care**
 - Glycaemic control
@@ -50,15 +44,7 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 - Consider aspirin
 - SGLT2i*
 
-## Heart Failure (HF)
-
-**Optimal Care**
-- (nessuna indicazione)
-
-**Basic Care**
-- (nessuna indicazione / vedi Optimal Care)
-
-## Screening/risk assessment
+## Heart Failure (HF) - Screening/risk assessment
 
 **Optimal Care**
 - Symptoms
@@ -66,7 +52,8 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 - ECG
 - Echocardiography
 - Risk score
-- Biomarkers - BNP / NT-proBNP
+- Biomarkers
+  - BNP / NT-proBNP
 
 **Basic Care**
 - Symptoms
@@ -74,7 +61,7 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 - ECG
 - Risk score
 
-## Management
+## Heart Failure (HF) - Management
 
 **Optimal Care**
 - Glycaemic control
@@ -95,21 +82,13 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 - Metformin+SGLT2i*
 - Consider adding a steroidal MRA
 
-## Chronic Kidney Disease (CKD)
-
-**Optimal Care**
-- (nessuna indicazione)
-
-**Basic Care**
-- (nessuna indicazione / vedi Optimal Care)
-
-## Screening/risk assessment
+## Chronic Kidney Disease (CKD) - Screening/risk assessment
 
 **Optimal Care e Basic Care (indicazione unica)**
 - eGFR
 - UACR
 
-## Management
+## Chronic Kidney Disease (CKD) - Management
 
 **Optimal Care**
 - Glycaemic control

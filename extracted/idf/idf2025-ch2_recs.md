@@ -24,7 +24,9 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 **Optimal Care**
 - Measure HbA1c at regular intervals
 - HbA1c general target 7.0% (53 mmol/mol)
-- Personalise HbA1c - higher in the elderly - lower in the newly diagnosed
+- Personalise HbA1c
+  - higher in the elderly
+  - lower in the newly diagnosed
 - Measure fructosamine if HbA1c cannot be measured accurately
 
 **Basic Care**
@@ -45,15 +47,13 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 - Consider SMBG in other people with T2DM treated with other insulin regimens
 - Provide education in structured SMBG
 
-## Self-monitoring of blood glucose (SMBG)
-
 **Optimal Care e Basic Care (indicazione unica)**
 - SMBG targets:
-Fasting and pre-prandial glucose
-- 4.0–8.0 mmol/L (70–144 mg/dL)
-Postprandial glucose†
-- 4.0–8.0 mmol/L (70–144 mg/dL) (preferable)
-- 4.0–9.0 mmol/L (70–160 mg/dL) (acceptable)
+  - **Fasting and pre-prandial glucose**
+    - 4.0–8.0 mmol/L (70–144 mg/dL)
+  - **Postprandial glucose†**
+    - 4.0–8.0 mmol/L (70–144 mg/dL) (preferable)
+    - 4.0–9.0 mmol/L (70–160 mg/dL) (acceptable)
 
 ## Continuous glucose monitoring (CGM)
 
@@ -62,8 +62,6 @@ Postprandial glucose†
 
 **Basic Care**
 - Consider short-term CGM in select people with T2DM on intensive insulin regimens or insulin pump, if available and affordable
-
-## Continuous glucose monitoring (CGM)
 
 **Optimal Care e Basic Care (indicazione unica)**
 - CGM targets (refer to Table 2.1)

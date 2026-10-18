@@ -51,8 +51,8 @@ def inside(word_or_rect, rect, pad=1.5):
     return rect.x0 - pad <= cx <= rect.x1 + pad and rect.y0 - pad <= cy <= rect.y1 + pad
 
 
-def cell_items(page, rect, exclude=()):
-    """Testo di una cella come lista di (tipo, testo): 'b' = voce di elenco, 'p' = paragrafo."""
+def cell_lines(page, rect, exclude=()):
+    """Righe di una cella: [{'text','x','y','bullet'}] in ordine di lettura."""
     words = [w for w in page.get_text("words", clip=rect) if not any(inside(w, ex) for ex in exclude)]
     words.sort(key=lambda w: (w[5], w[6], w[7]))
     lines, key = [], None
@@ -61,27 +61,100 @@ def cell_items(page, rect, exclude=()):
         if k != key:
             lines.append([])
             key = k
-        lines[-1].append(w[4])
-    items = []
-    for ln in lines:
-        txt = " ".join(ln).strip()
+        lines[-1].append(w)
+    out = []
+    for ws in lines:
+        txt = " ".join(w[4] for w in ws).strip()
         if not txt:
             continue
-        if txt[0] in "•" or txt.startswith("• "):
-            items.append(["b", txt.lstrip("• ").strip()])
-        elif items and not items[-1][1].rstrip().endswith(TERMINAL) and (txt[0].islower() or txt[0].isdigit()):
-            items[-1][1] += " " + txt                  # riga di continuazione
-        elif items and items[-1][0] == "b" and not items[-1][1].rstrip().endswith(TERMINAL):
-            items[-1][1] += " " + txt
+        bullet = txt.startswith("•")
+        out.append({"text": txt.lstrip("• ").strip() if bullet else txt,
+                    "x": ws[0][0], "y": ws[0][1], "bullet": bullet})
+    out.sort(key=lambda l: (round(l["y"]), l["x"]))
+    return out
+
+
+def cell_items(page, rect, exclude=()):
+    """Voci di una cella: [{'t': 'b'|'c'|'p', 'text', 'y'}].
+    b = voce di elenco, c = condizione ("If only on metformin"), p = paragrafo."""
+    lines = cell_lines(page, rect, exclude)
+    bxs = [l["x"] for l in lines if l["bullet"]]
+    bx = Counter(round(x) for x in bxs).most_common(1)[0][0] if bxs else None
+    items = []
+    for l in lines:
+        if l["bullet"]:
+            items.append({"t": "b", "text": l["text"], "y": l["y"]})
+        elif bx is not None:
+            if re.match(r"^[–-]\s+\S", l["text"]) and items and items[-1]["t"] in ("b", "s", "sh", "c", "p"):
+                items.append({"t": "s", "text": re.sub(r"^[–-]\s+", "", l["text"]), "y": l["y"], "x": l["x"]})
+            elif (l["x"] > bx + 12 and items and items[-1]["t"] in ("b", "s")
+                  and not items[-1]["text"].rstrip().endswith(TERMINAL + (")",))):
+                items[-1]["text"] += " " + l["text"]          # riga a capo di una voce incompleta
+            elif l["x"] > bx + 12 and items:
+                if (items[-1]["t"] == "sh" and not items[-1]["text"].rstrip().endswith(TERMINAL)
+                        and l["text"][0].islower()):
+                    items[-1]["text"] += " " + l["text"]
+                else:
+                    items.append({"t": "sh", "text": l["text"], "y": l["y"], "x": l["x"]})
+            elif l["x"] > bx + 3 and items and items[-1]["t"] in ("b", "s"):
+                items[-1]["text"] += " " + l["text"]          # riga di continuazione di una voce
+            elif (items and items[-1]["t"] == "c" and abs(l["x"] - items[-1]["x"]) < 3
+                  and not items[-1]["text"].rstrip().endswith(TERMINAL) and l["y"] - items[-1]["y"] < 14):
+                items[-1]["text"] += " " + l["text"]          # condizione su due righe
+            else:
+                items.append({"t": "c", "text": l["text"], "y": l["y"], "x": l["x"]})
         else:
-            items.append(["p", txt])
-    return [(t, squash(x)) for t, x in items]
+            t = l["text"]
+            if items and items[-1]["t"] == "p" and not items[-1]["text"].rstrip().endswith(TERMINAL) \
+                    and (t[0].islower() or t[0].isdigit()):
+                items[-1]["text"] += " " + t
+            else:
+                items.append({"t": "p", "text": t, "y": l["y"]})
+    for it in items:
+        it["text"] = squash(it["text"])
+    return items
 
 
-def items_md(items, indent=""):
-    out = []
-    for t, x in items:
-        out.append(f"{indent}- {x}" if t == "b" else f"{indent}{x}")
+def render_items(items, sublabels=(), headings=False):
+    """Trasforma le voci in righe markdown.
+    - headings=False (colonne Optimal/Basic): ogni condizione vale per la voce che la segue.
+    - headings=True (celle a indicazione unica): le righe allineate a sinistra sono intestazioni di elenco.
+    - le sotto-etichette della colonna di sinistra valgono per le voci che stanno alla loro altezza o sotto."""
+    out, pending = [], None
+    under_sh = False
+    subs = sorted(sublabels)
+    for it in items:
+        if it["t"] == "c":
+            if headings:
+                out.append(f"**{it['text'].strip()}**" if it["text"].rstrip().endswith(":") else it["text"])
+                continue
+            if pending:
+                out.append(pending)
+            pending = it["text"]
+            continue
+        if it["t"] == "sh":
+            out.append(f"  - **{it['text'].rstrip(':').strip()}**")
+            under_sh = True
+            continue
+        if it["t"] == "s":
+            out.append(f"    - {it['text']}" if under_sh else f"  - {it['text']}")
+            continue
+        under_sh = False
+        sub = None
+        for sy, stext in subs:
+            if it["y"] >= sy - 4:
+                sub = stext
+        conds = [c.rstrip(":").strip() for c in (sub, pending) if c]
+        pending = None if it["t"] != "p" else pending
+        if it["t"] == "b":
+            out.append(f"- *{'; '.join(conds)}:* {it['text']}" if conds else f"- {it['text']}")
+        else:
+            out.append(it["text"])
+    if pending:
+        if pending.startswith("(") and out:
+            out[-1] += " " + pending            # nota tra parentesi riferita alla voce precedente
+        else:
+            out.append(pending)
     return out
 
 
@@ -90,7 +163,7 @@ def inner_table_md(page, table):
     for row in table.rows:
         cells = []
         for c in row.cells:
-            cells.append(squash(" ".join(x for _, x in cell_items(page, fitz.Rect(c)))) if c else "")
+            cells.append(squash(" ".join(i["text"] for i in cell_items(page, fitz.Rect(c)))) if c else "")
         rows.append(cells)
     rows = [r for r in rows if any(r)]
     if len(rows) < 2:
@@ -138,10 +211,18 @@ def parse_recs_table(doc, page_no):
     header = outer.rows[0].cells if outer.rows else []
     w_opt = (header[1][2] - header[1][0]) if len(header) > 1 and header[1] else 0
     prev_label = ""
+    group = ""
     for r in outer.rows[1:]:
         cells = r.cells
         if len(cells) < 2:
             continue
+        # riga a tutta larghezza senza celle a destra = titolo di gruppo (es. "At diagnosis")
+        if all(c is None for c in cells[1:]) and cells[0]:
+            g = squash(" ".join(i["text"] for i in cell_items(page, fitz.Rect(cells[0]))))
+            if g:
+                group = g
+                prev_label = ""
+                continue
 
         def col(i, ex=inner_rects):
             c = cells[i] if i < len(cells) else None
@@ -150,21 +231,40 @@ def parse_recs_table(doc, page_no):
             rect = fitz.Rect(c)
             return rect, cell_items(page, rect, exclude=ex)
 
-        _, label_items = col(0, ())
-        label = squash(" ".join(x for _, x in label_items)) or prev_label
+        # colonna di sinistra: etichetta principale + eventuali sotto-condizioni (es. "In obese persons")
+        lab_lines = cell_lines(page, fitz.Rect(cells[0]), ()) if cells[0] else []
+        clusters = []
+        for l in lab_lines:
+            if clusters and l["y"] - clusters[-1][-1]["y"] <= 14:
+                clusters[-1].append(l)
+            else:
+                clusters.append([l])
+        label = squash(" ".join(l["text"] for l in clusters[0])) if clusters else ""
+        sublabels = [(c[0]["y"], squash(" ".join(l["text"] for l in c))) for c in clusters[1:]]
+        continuation = not label and bool(rows_out)
+        label = label or prev_label
         if label:
             prev_label = label
-        r1, opt = col(1)
-        r2, basic = col(2)
-        shared = bool(r1 is not None and w_opt and (r1.x1 - r1.x0) > 1.4 * w_opt and not basic)
-
+        r1, opt_items = col(1)
+        r2, basic_items = col(2)
+        shared = bool(r1 is not None and w_opt and (r1.x1 - r1.x0) > 1.4 * w_opt and not basic_items)
+        opt = render_items(opt_items, sublabels, headings=shared)
+        basic = render_items(basic_items, sublabels)
         # tabelle annidate: le rendo come tabella markdown dentro la cella Optimal
         extra = []
         if r1 is not None:
             for it, ir in zip(inners, inner_rects):
                 if inside(ir, r1):
                     extra += inner_table_md(page, it)
-        rows_out.append({"label": label, "optimal": opt, "basic": basic, "shared": shared, "extra": extra})
+        if continuation:                      # riga senza etichetta: continua la precedente
+            rows_out[-1].setdefault("cont", []).append(
+                {"shared": shared, "optimal": opt, "basic": basic, "extra": extra})
+            continue
+        same = [x for x in rows_out if x["group"] == group and x["label"].split(" (")[0] == label]
+        if same:
+            label = f"{label} ({len(same) + 1})"
+        rows_out.append({"group": group, "label": label, "optimal": opt, "basic": basic,
+                         "shared": shared, "extra": extra})
     if not rows_out:
         warns.append("nessuna riga letta")
     return rows_out, warns
@@ -242,19 +342,35 @@ def front(name, n, title, kind, extra=""):
 def write_recs(path, n, title, rows, optimal_only):
     L = [front("idf2025-ch%d" % n, n, title, "recs"), f"# Capitolo {n} - {title} - raccomandazioni\n"]
     for r in rows:
-        L.append(f"\n## {r['label'] or '(senza etichetta)'}\n")
+        title_row = r['label'] or '(senza etichetta)'
+        if r.get("group"):
+            title_row = f"{r['group']} - {title_row}"
+        L.append(f"\n## {title_row}\n")
         if r["shared"]:
             L.append("**Optimal Care e Basic Care (indicazione unica)**")
-            L += items_md(r["optimal"])
+            L += r["optimal"]
         else:
             L.append("**Optimal Care**")
-            L += items_md(r["optimal"]) if r["optimal"] else ["- (nessuna indicazione)"]
+            L += r["optimal"] if r["optimal"] else ["- (nessuna indicazione)"]
             if not optimal_only:
                 L.append("\n**Basic Care**")
-                L += items_md(r["basic"]) if r["basic"] else ["- (nessuna indicazione / vedi Optimal Care)"]
+                L += r["basic"] if r["basic"] else ["- (nessuna indicazione / vedi Optimal Care)"]
         if r["extra"]:
             L.append("")
             L += r["extra"]
+        for c in r.get("cont", []):
+            L.append("")
+            if c["shared"]:
+                L.append("**Optimal Care e Basic Care (indicazione unica)**")
+                L += c["optimal"]
+            else:
+                L.append("**Optimal Care (continua)**")
+                L += c["optimal"] if c["optimal"] else ["- (nessuna indicazione)"]
+                if not optimal_only:
+                    L.append("\n**Basic Care (continua)**")
+                    L += c["basic"] if c["basic"] else ["- (nessuna indicazione)"]
+            if c["extra"]:
+                L += c["extra"]
     path.write_text("\n".join(L) + "\n", encoding="utf-8")
 
 
