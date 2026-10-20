@@ -11,6 +11,8 @@ dependencies = [
     "supabase>=2.10",
     "google-genai>=2.30,<3",
     "pymupdf>=1.28.2",
+    "pypdf>=6.21.1",
+    "fonttools>=4.67.0",
 ]
 
 [dependency-groups]
