@@ -1,4 +1,3 @@
-
 ---
 doc_id: diabetes-uk-insulin-injection-technique
 title: Insulin Injection Technique and Site Care in Type 2 Diabetes

@@ -37,7 +37,7 @@ note: "Testo ripulito e riorganizzato in 5 chunk autonomi, fedele alla sola font
 - infezioni ripetute (ad esempio cistite o infezioni della pelle);
 - mal di testa.
 
-Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa di averlo è necessario rivolgersi al medico di famiglia il prima possibile.
+Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa di averlo è necessario rivolgersi al medico di famiglia il prima possibile o chiamare il servizio dio emergenza locale o il 118.
 
 **Cause di aumento della glicemia in chi ha già il diabete e segue una terapia adeguata:**
 
