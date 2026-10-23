@@ -37,7 +37,7 @@ note: "Testo ripulito e riorganizzato in 5 chunk autonomi, fedele alla sola font
 - infezioni ripetute (ad esempio cistite o infezioni della pelle);
 - mal di testa.
 
-Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa di averlo è necessario rivolgersi al medico di famiglia il prima possibile o chiamare il servizio dio emergenza locale o il 118.
+Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa di averlo è necessario rivolgersi al medico di famiglia il prima possibile o se non è raggiungibile subito, guardia medica o pronto soccorso.
 
 **Cause di aumento della glicemia in chi ha già il diabete e segue una terapia adeguata:**
 
@@ -59,9 +59,14 @@ Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa
 **Contesto:** comportamento da tenere quando la glicemia risulta alta.
 
 - Nelle persone con diabete l'iperglicemia deve essere trattata con attenzione, con l'obiettivo di mantenere la glicemia il più possibile vicina ai valori normali.
-- Le persone con diabete devono **seguire i consigli del team diabetologico** da cui sono in cura e **rivolgersi al medico curante in caso di iperglicemia**.
+- Le persone con diabete devono **seguire i consigli del team diabetologico** da cui sono in cura e **rivolgersi al medico di famiglia il prima possibile o se non è raggiungibile subito, guardia medica o pronto soccorso in caso di iperglicemia**.
 - Nei casi di iperglicemia transitoria, in genere non è necessaria una terapia oppure si interviene sulla causa (ad esempio situazioni di stress o terapia con corticosteroidi).
-- **Rivolgersi immediatamente al medico** se la glicemia è elevata **e** compare uno dei segnali di allarme del chunk 3.
+- **Rivolgersi immediatamente al medico** se la glicemia è elevata **e**che possono indicare un diabete non trattato in modo adeguato:
+  - sensazione di stanchezza;
+  - mal di stomaco;
+  - difficoltà respiratorie;
+  - segni di disidratazione (mal di testa, pelle secca, battito cardiaco debole e rapido);
+  - difficoltà a rimanere svegli.
 
 > **Nota per il RAG:** la fonte **non fornisce indicazioni sul trattamento domiciliare delle crisi iperglicemiche** (ad esempio dosaggi di boli correttivi di insulina, soglie di glicemia oltre le quali agire, schemi di correzione). Il bot non deve proporre dosi o schemi di correzione e deve rimandare al team diabetologico o al medico curante.
 
@@ -81,7 +86,7 @@ Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa
 
 **Chetoacidosi diabetica (DKA).** Secondo la fonte, nel diabete di tipo 1 livelli di glicemia molto elevati possono dare complicanze acute gravi come la chetoacidosi: le cellule, non riuscendo a usare il glucosio, usano grassi e proteine muscolari come fonte di energia e si accumulano nel sangue corpi chetonici acidi. Può causare vomito, disidratazione, perdita di coscienza e persino la morte.
 
-> **Nota per il RAG:** la fonte descrive la DKA solo in riferimento al diabete di tipo 1 e **non descrive lo stato iperglicemico iperosmolare (HHS)**. Il bot non deve fornire informazioni su HHS basandosi su questo testo. In presenza di glicemia molto alta con sete intensa, disidratazione, confusione o sonnolenza deve indirizzare a una valutazione medica urgente. Per la DKA nel tipo 2 e per i sintomi dettagliati vedere il file sulle complicanze (fonte SID).
+**Nota:** Se la persona ha glicemia molto alta con sete intensa, disidratazione, confusione o sonnolenza, non descrivere diagnosi né dare istruzioni: indirizzare a valutazione medica urgente (112/118 se confusione, sonnolenza marcata o difficoltà respiratorie). 
 
 ---
 
@@ -121,6 +126,4 @@ Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa
 - parodontite e problemi gengivali;
 - disfunzione sessuale.
 
-Nel diabete di tipo 1 livelli molto elevati possono dare anche complicanze acute gravi come la chetoacidosi (chunk 3).
-
-**Per i dettagli** su cause, prevenzione e professionisti di riferimento di ciascuna complicanza vedere il file dedicato (fonte SID).
+Le singole complicanze (cause, prevenzione, professionisti di riferimento) sono approfondite in un altro documento della base di conoscenza (fonte SID). Se la domanda  riguarda i dettagli di una complicanza e non sono presenti nel contesto, non completarli  a memoria: rimandare al diabetologo.

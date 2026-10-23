@@ -41,32 +41,32 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 
 - **7.15** Use of CGM is recommended at diabetes onset and anytime thereafter for children, adolescents, and adults with diabetes who are on insulin therapy, [A] on noninsulin therapies that can cause hypoglycemia, [C] and on any diabetes treatment where CGM helps in management. [C] The specific CGM device and method for use should be made based on the individual’s circumstances, preferences, and needs. [E]
 - **7.16** In people with diabetes on insulin therapy, CGM devices should be used as close to daily as possible for maximal benefit. [A] People with diabetes should have uninterrupted access to their supplies to minimize gaps in CGM. [A]
-- **7.18** In circumstances when consistent use of CGM is not feasible, consider periodic use of personal or professional CGM to adjust medication and/or lifestyle. [C]
-- **7.19** Skin reactions, either due to irritation or allergy, should be assessed and addressed to aid in successful use of devices. [E]
-- **7.20** People who wear CGM devices should be educated on potential interfering substances and other factors that may affect accuracy. [C]
+- **7.17** In circumstances when consistent use of CGM is not feasible, consider periodic use of personal or professional CGM to adjust medication and/or lifestyle. [C]
+- **7.18** Skin reactions, either due to irritation or allergy, should be assessed and addressed to aid in successful use of devices. [E]
+- **7.19** People who wear CGM devices should be educated on potential interfering substances and other factors that may affect accuracy. [C]
 
 ## INSULIN DELIVERY / Insulin Syringes and Pens
 
-- **7.21** For people with insulin-requiring diabetes on multiple daily injections (MDI), insulin pens are preferred in most cases. Still, insulin syringes may be used for insulin delivery consider-ing individual and caregiver preference, insulin type, availability in vials, dosing therapy, cost, and self-management capabilities. [C]
-- **7.22** Insulin pens or insulin injection aids are recommended for people with dexterity issues or vision impairment or when decided by shared decision-making to facilitate the accurate dosing and administration of insulin. [C]
-- **7.23** Offer connected insulin pens for people with diabetes taking multiple daily insulin injections when appropriate. [B]
-- **7.24** FDA-approved insulin dose calculators/decision support systems may be helpful for calculating insulin doses. [B]
+- **7.20** For people with insulin-requiring diabetes on multiple daily injections (MDI), insulin pens are preferred in most cases. Still, insulin syringes may be used for insulin delivery consider-ing individual and caregiver preference, insulin type, availability in vials, dosing therapy, cost, and self-management capabilities. [C]
+- **7.21** Insulin pens or insulin injection aids are recommended for people with dexterity issues or vision impairment or when decided by shared decision-making to facilitate the accurate dosing and administration of insulin. [C]
+- **7.22** Offer connected insulin pens for people with diabetes taking multiple daily insulin injections when appropriate. [B]
+- **7.23** FDA-approved insulin dose calculators/decision support systems may be helpful for calculating insulin doses. [B]
 
 ## INSULIN DELIVERY / Insulin Pumps and Automated Insulin Delivery Systems
 
-- **7.25a** AID systems are the preferred insulin delivery method over MDI, CSII, and sensor-augmented pumps in people with type 1 diabetes, [A] adults with type 2 diabetes, [A] children and adolescents with type 2 diabetes, [E] and those with other forms of insulin-deficient diabetes. [B], [C], D, [E] Choice of an AID system should be made based on the individual’s circumstances, preferences, and needs. [E]
-- **7.25b** Consider AID systems for select people with type 2 diabetes treated with basal insulin not achieving individualized glycemic goals. [B] Choice of an AID system should be made based on the individual’s circumstances, preferences, and needs. [E]
-- **7.26** Individuals with diabetes who have been using CSII and/or AID should have continued access across third-party payors. [E]
+- **7.24a** AID systems are the preferred insulin delivery method over MDI, CSII, and sensor-augmented pumps in people with type 1 diabetes, [A] adults with type 2 diabetes, [A] children and adolescents with type 2 diabetes, [E] and those with other forms of insulin-deficient diabetes. [B], [C], D, [E] Choice of an AID system should be made based on the individual’s circumstances, preferences, and needs. [E]
+- **7.24b** Consider AID systems for select people with type 2 diabetes treated with basal insulin not achieving individualized glycemic goals. [B] Choice of an AID system should be made based on the individual’s circumstances, preferences, and needs. [E]
+- **7.25** Individuals with diabetes who have been using CSII and/or AID should have continued access across third-party payors. [E]
 
 ## INSULIN DELIVERY / Open-Source Automated Insulin Dosing
 
-- **7.27** Support and provide diabetes management advice to people with diabetes who choose to use an open-source AID system. [B]
+- **7.26** Support and provide diabetes management advice to people with diabetes who choose to use an open-source AID system. [B]
 
 ## INSULIN DELIVERY / Digital Health Technology
 
-- **7.28** Consider combining technology (CGM, insulin pump, and/or diabetes apps) with online or virtual licensed coaching to improve glycemic outcomes in individuals with diabetes or prediabetes. [B]
+- **7.27** Consider combining technology (CGM, insulin pump, and/or diabetes apps) with online or virtual licensed coaching to improve glycemic outcomes in individuals with diabetes or prediabetes. [B]
 
 ## INSULIN DELIVERY / Inpatient Care
 
-- **7.29** In people with diabetes wearing personal CGM, the use of CGM should be continued when clinically appropriate during hospitalization, with confirmatory point-of-care glucose measurements for insulin dosing and hypoglycemia assessment and treatment under an institutional protocol. [B]
-- **7.30** Continue use of insulin pump or AID in people with diabetes who are hospitalized when clinically appropriate. This is contingent upon availability of necessary supplies, resources, training, ongoing competency assessments, and implementation of institutional diabetes technology protocols. [C]
+- **7.28** In people with diabetes wearing personal CGM, the use of CGM should be continued when clinically appropriate during hospitalization, with confirmatory point-of-care glucose measurements for insulin dosing and hypoglycemia assessment and treatment under an institutional protocol. [B]
+- **7.29** Continue use of insulin pump or AID in people with diabetes who are hospitalized when clinically appropriate. This is contingent upon availability of necessary supplies, resources, training, ongoing competency assessments, and implementation of institutional diabetes technology protocols. [C]

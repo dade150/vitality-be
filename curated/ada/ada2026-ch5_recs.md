@@ -61,50 +61,50 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 ## PHYSICAL ACTIVITY
 
 - **5.34** Evaluate baseline physical activity and sedentary time for all people with diabetes and those at risk for diabetes. For people who do not meet activity guidelines, encourage an increase in physical activities above baseline with the goal of meeting activity guidelines. [B] Counsel that prolonged sitting should be interrupted at least every 30 min for blood glucose and other benefits. [C]
-- **5.37** Counsel adults with type 1 diabetes [C] and type 2 diabetes [B] to engage in 2–3 sessions/week of resistance exercise on nonconsecutive days.
-- **5.38** Counsel most older adults with diabetes to engage in flexibility training and balance training 2–3 times/ week. [C]
-- **5.39** Counsel all people with diabetes who are treated with obesity pharmacotherapy or metabolic surgery that meeting physical activity recommendations, in particular musclestrengthening exercises, may be beneficial for maintaining lean body mass. [C]
+- **5.35** Counsel adults with type 1 diabetes [C] and type 2 diabetes [B] to engage in 2–3 sessions/week of resistance exercise on nonconsecutive days.
+- **5.36** Counsel most older adults with diabetes to engage in flexibility training and balance training 2–3 times/ week. [C]
+- **5.37** Counsel all people with diabetes who are treated with obesity pharmacotherapy or metabolic surgery that meeting physical activity recommendations, in particular musclestrengthening exercises, may be beneficial for maintaining lean body mass. [C]
 
 ## SMOKING CESSATION: TOBACCO, E-CIGARETTES, AND CANNABIS
 
-- **5.40** Ask people with diabetes routinely about the use of tobacco or vape products. [A] Advise complete avoidance of tobacco and vaping. [A] For individuals who use these products, provide or refer for combination treatment consisting of tobacco and/or vape product(s) cessation counseling and pharmacologic therapy. [A]
+- **5.38** Ask people with diabetes routinely about the use of tobacco or vape products. [A] Advise complete avoidance of tobacco and vaping. [A] For individuals who use these products, provide or refer for combination treatment consisting of tobacco and/or vape product(s) cessation counseling and pharmacologic therapy. [A]
 
 ## PSYCHOSOCIAL CARE
 
-- **5.42** Provide psychosocial care to all people with diabetes as part of routine medical care delivered by trained health care professionals using a collaborative, person-centered, culturally informed approach. [A]
-- **5.43** Implement screening protocols for psychosocial concerns, preferably using age-appropriate standardized and validated tools. Screen at least annually or when there is a change in health status, treatment, or life circumstances. [C]
-- **5.44** Refer to behavioral health professionals or other trained health care professionals, ideally those with experience in diabetes, for further assessment and treatment of psychosocial concerns as indicated. [B]
+- **5.39** Provide psychosocial care to all people with diabetes as part of routine medical care delivered by trained health care professionals using a collaborative, person-centered, culturally informed approach. [A]
+- **5.40** Implement screening protocols for psychosocial concerns, preferably using age-appropriate standardized and validated tools. Screen at least annually or when there is a change in health status, treatment, or life circumstances. [C]
+- **5.41** Refer to behavioral health professionals or other trained health care professionals, ideally those with experience in diabetes, for further assessment and treatment of psychosocial concerns as indicated. [B]
 
 ## PSYCHOSOCIAL CARE / Diabetes Distress
 
-- **5.45** Screen for diabetes distress at least annually in people with diabetes, caregivers, and family members, and repeat screening when treatment goals are not met, at transitional times, and/or in the presence of diabetes complications. Health care professionals should consider referral to a qualified behavioral health professional, ideally one with experience in diabetes, for further assessment and treatment if not adequately addressed during medical appointments. [B]
+- **5.42** Screen for diabetes distress at least annually in people with diabetes, caregivers, and family members, and repeat screening when treatment goals are not met, at transitional times, and/or in the presence of diabetes complications. Health care professionals should consider referral to a qualified behavioral health professional, ideally one with experience in diabetes, for further assessment and treatment if not adequately addressed during medical appointments. [B]
 
 ## PSYCHOSOCIAL CARE / Anxiety
 
-- **5.46** Screen for anxiety symptoms at least annually in people with diabetes. Health care professionals can address anxiety symptoms within the scope of their practice. Consider referral to a qualified behavioral health professional for further assessment and treatment if anxiety symptoms interfere with diabetes self-management behaviors or quality of life, if not adequately addressed during medical appointments. [B]
-- **5.47** Screen individuals at high risk for hypoglycemia or with severe and/or frequent hypoglycemia for fear of hypoglycemia at least annually and when clinically appropriate. [E] Refer to a trained health care professional for evidence-based intervention. [A]
+- **5.43** Screen for anxiety symptoms at least annually in people with diabetes. Health care professionals can address anxiety symptoms within the scope of their practice. Consider referral to a qualified behavioral health professional for further assessment and treatment if anxiety symptoms interfere with diabetes self-management behaviors or quality of life, if not adequately addressed during medical appointments. [B]
+- **5.44** Screen individuals at high risk for hypoglycemia or with severe and/or frequent hypoglycemia for fear of hypoglycemia at least annually and when clinically appropriate. [E] Refer to a trained health care professional for evidence-based intervention. [A]
 
 ## PSYCHOSOCIAL CARE / Depression
 
-- **5.48** Screen for depressive symptoms in all people with diabetes at least annually and more frequently among those with a history of depression. [B] Refer to qualified behavioral health professionals or other health care professionals with experience using evidence-based treatment approaches for de-pression in collaboration with the diabetes care team. [A]
-- **5.49** Rescreen for depression at di-agnosis of complications or when there are significant changes in medical status. [B]
+- **5.45** Screen for depressive symptoms in all people with diabetes at least annually and more frequently among those with a history of depression. [B] Refer to qualified behavioral health professionals or other health care professionals with experience using evidence-based treatment approaches for de-pression in collaboration with the diabetes care team. [A]
+- **5.46** Rescreen for depression at di-agnosis of complications or when there are significant changes in medical status. [B]
 
 ## PSYCHOSOCIAL CARE / Disordered Eating Behavior
 
-- **5.50** Screen for disordered or disrupted eating using validated screening meas-ures. Review the medical treatment plan to identify potential treatment-related effects on hunger/caloric intake. [B]
-- **5.51** Reevaluate the treatment plan of people with diabetes who present with symptoms of disordered eating behaviors, an eating disorder, or disrupted patterns of eating, ideally in consulta-tion with a qualified professional. [B]
+- **5.47** Screen for disordered or disrupted eating using validated screening meas-ures. Review the medical treatment plan to identify potential treatment-related effects on hunger/caloric intake. [B]
+- **5.48** Reevaluate the treatment plan of people with diabetes who present with symptoms of disordered eating behaviors, an eating disorder, or disrupted patterns of eating, ideally in consulta-tion with a qualified professional. [B]
 
 ## PSYCHOSOCIAL CARE / Serious Mental Illness
 
-- **5.52** Provide an increased level of support for people with diabetes and serious mental illness through enhanced monitoring of and assistance with diabetes self-management behaviors. [B]
-- **5.53** Monitor changes in body weight, glycemia, and lipids in adolescents and adults with diabetes who are prescribed second-generation antipsychotic medications; adjust the treat-ment plan accordingly, if needed. [C]
+- **5.49** Provide an increased level of support for people with diabetes and serious mental illness through enhanced monitoring of and assistance with diabetes self-management behaviors. [B]
+- **5.50** Monitor changes in body weight, glycemia, and lipids in adolescents and adults with diabetes who are prescribed second-generation antipsychotic medications; adjust the treat-ment plan accordingly, if needed. [C]
 
 ## PSYCHOSOCIAL CARE / Cognitive Capacity and Impairment
 
-- **5.54** Monitor cognitive capacity throughout the life span for all individuals with diabetes, particularly in those who have documented cognitive dis-abilities, those who experience severe hypoglycemia, very young children, and older adults. [B]
-- **5.55** Consider referral for a formal assessment if cognitive capacity changes or appears to be suboptimal for decision-making and/or behavioral self-management. [E]
+- **5.51** Monitor cognitive capacity throughout the life span for all individuals with diabetes, particularly in those who have documented cognitive dis-abilities, those who experience severe hypoglycemia, very young children, and older adults. [B]
+- **5.52** Consider referral for a formal assessment if cognitive capacity changes or appears to be suboptimal for decision-making and/or behavioral self-management. [E]
 
 ## PSYCHOSOCIAL CARE / Sleep Health
 
-- **5.56** Screen for sleep health in peo-ple with prediabetes or diabetes and in those at risk for diabetes, including screening for sleep disorders and diabetes-related sleep dis-ruptions. Refer to sleep medicine specialists and/or qualified behavioral health professionals or diabetes care team as indicated. [B]
-- **5.57** Counsel people with diabetes to practice sleep-promoting routines and habits. [A]
+- **5.53** Screen for sleep health in peo-ple with prediabetes or diabetes and in those at risk for diabetes, including screening for sleep disorders and diabetes-related sleep dis-ruptions. Refer to sleep medicine specialists and/or qualified behavioral health professionals or diabetes care team as indicated. [B]
+- **5.54** Counsel people with diabetes to practice sleep-promoting routines and habits. [A]

@@ -62,6 +62,3 @@ license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritt
 
 **Basic Care**
 - Consider short-term CGM in select people with T2DM on intensive insulin regimens or insulin pump, if available and affordable
-
-**Optimal Care e Basic Care (indicazione unica)**
-- CGM targets (refer to Table 2.1)

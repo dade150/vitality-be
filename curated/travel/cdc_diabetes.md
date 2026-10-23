@@ -39,9 +39,32 @@ Travel disrupts normal diabetes-management routines. Delayed meals, unfamiliar f
 
 ### Airport security and diabetes devices
 
-The CDC source states that travelers with diabetes can bring liquids exceeding 3.4 ounces (approximately 100 mL) through airport security in their carry-on baggage when they are diabetes-related liquids, such as liquid medicines, fast-acting glucose sources, or gel packs used to keep insulin cool. Travelers should check the applicable airport security rules before departure.
+**United States (CDC/TSA source).** According to the TSA, on flights departing from
+US airports, diabetes-related liquids (liquid medicines, fast-acting glucose sources,
+gel packs used to keep insulin cool) can exceed 100 mL in carry-on baggage. This rule
+applies only to security checks in the United States.
 
-The source also warns that X-ray equipment may damage some insulin pumps or continuous glucose monitors (CGMs). It advises travelers to ask for a hand inspection rather than disconnecting their devices. Device-specific manufacturer guidance and current airport security procedures should be checked before travel.
+**Italy and the European Union (editorial addition, not in the CDC source).**
+On flights departing from Italian or EU airports, Commission Implementing Regulation
+(EU) 2015/1998 applies. The general rule is containers of 100 mL or less, in a single
+transparent 1-litre bag. Exceptions exist for liquid medicines needed during the
+journey, such as insulin, which may exceed 100 mL.
+- Keep medicines in carry-on baggage and declare them at the security checkpoint.
+- Carry a prescription or medical certificate: security staff may ask for it, and
+  airlines have different policies (some always require it, others only above 100 mL).
+- Carry the quantity needed for the journey, not the entire supply.
+- Some airports use scanners that remove the 100 mL limit, but not all do:
+  do not rely on this without checking.
+- With a connecting flight, especially outside the EU, security checks may be repeated
+  under different rules.
+- For flights arriving in Italy, the rules of the departure airport apply.
+- Before travelling, check the website of ENAC (the Italian civil aviation authority),
+  the airport, and the airline.
+
+> **RAG note:** assume the user is in Italy. Present the US rule only as applying
+> "in the United States". Do not state that insulin "always passes": say that an
+> exception exists, that it may require documentation, and refer the user to the
+> airline, the airport, and ENAC. Do not give maximum permitted quantities.
 
 ## While you are traveling
 
