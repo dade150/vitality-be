@@ -1,15 +1,16 @@
 ---
-doc_id: ada2026-ch10-recs
-source_name: "ADA Standards of Care in Diabetes 2026 - 10. Cardiovascular Disease and Risk Management: Standards of Care in Diabetes—2026"
-source_org: ADA
-source_url: https://doi.org/10.2337/dc26-S010
-doc_type: clinical_guideline
-audience: clinician
-jurisdiction: US/INT
-language: en
-last_verified: 2026-10-16
-can_quote_numbers: false
-license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissions@diabetes.org)"
+doc_id: "ada2026-ch10-recs"
+source_name: "ADA Standards of Care in Diabetes 2026 - 10. Cardiovascular Disease and Risk Management"
+source_org: "ADA"
+source_file: "dc26s010.pdf"
+source_path: "./sources/ada/2026/dc26s010.pdf"
+doc_type: "clinical_guideline"
+audience: "medical_professionals_and_rag_systems"
+jurisdiction: "US/INT"
+language: "en"
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG. Non esporre o distribuire il file originale."
 ---
 
 
@@ -90,28 +91,64 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 - **10.35** Combination therapy with 81 mg aspirin daily plus 2.5 mg rivaroxaban twice daily should be considered for individuals with stable coronary and/or peripheral artery disease (PAD) and low bleeding risk to prevent major adverse limb and cardiovascular events. [A]
 - **10.36** Aspirin therapy (75–162 mg/day) may be considered as a primary prevention strategy in those with diabetes who are at increased cardiovascular risk after a comprehensive discussion with the individual on the benefits versus the comparable increased risk of bleeding. [A]
 
-## CARDIOVASCULAR DISEASE / Screening
+## Coronary Artery Disease Screening
 
 - **10.37a** In asymptomatic individuals, routine screening for coronary artery disease is not recommended, as it does not improve outcomes as long as ASCVD risk factors are treated. [A]
 - **10.37b** Consider investigations for coronary artery disease in the presence of any of the following: signs or symptoms of cardiac or associated vascular disease, including carotid bruits, transient ischemic attack, stroke, claudication, or PAD; or electrocardiographic abnormalities (e.g., pathological Q waves). [E]
+
+## Screening for Heart Failure
+
 - **10.38a** Adults with diabetes are at increased risk for the development of asymptomatic cardiac structural or functional abnormalities (stage B heart failure) or symptomatic (stage C) heart failure. Consider screening adults with diabetes by measuring a natriuretic peptide (B-type natriuretic peptide [BNP] or N-terminal pro-BNP [NT-proBNP]) to facilitate prevention of stage C heart failure. [B]
 - **10.38b** In asymptomatic individuals with diabetes and abnormal natriuretic peptide levels, echocardiography is recommended to identify stage B heart failure. [A]
+
+## Peripheral Artery Disease Screening
+
 - **10.39** In asymptomatic individuals with diabetes and age ≥65 years, microvascular disease in any location, or foot complications or any end-organ damage from diabetes, screening for PAD with ankle-brachial index testing is recommended if a PAD diagnosis would change management. [B]
+
+## Cardiovascular Risk Reduction in Type 2 Diabetes
+
 - **10.40a** Among people with type 2 diabetes who have established ASCVD or chronic kidney disease (CKD), a sodium–glucose cotransporter 2 (SGLT2) inhibitor or glucagon-like peptide 1 receptor agonist (GLP-1 RA) with demonstrated cardiovascular disease benefit is recommended as part of the comprehensive cardiovascular risk reduction and/or glucose-lowering treatment plans. [A]
 - **10.40b** In people with type 2 diabetes and established ASCVD or multiple ASCVD risk factors, or CKD, an SGLT2 inhibitor with demonstrated cardiovascular benefit is recommended to reduce the risk of cardiovascular events. [A]
 - **10.40c** In people with type 2 diabetes and established ASCVD or multiple risk factors for ASCVD, or CKD, a GLP-1 RA with demonstrated cardiovascular benefit is recommended to reduce the risk of cardiovascular events. [A]
 - **10.40d** In people with type 2 diabetes and established ASCVD or multiple risk factors for ASCVD, combined therapy with an SGLT2 inhibitor with demonstrated cardiovascular benefit and a GLP-1 RA with demonstrated cardiovascular benefit may be considered for additive reduction of the risk of adverse cardiovascular and kidney events. [B]
+
+## SGLT Inhibitors for Established Heart Failure 
+
 - **10.41a** In people with type 2 diabetes and established heart failure with either preserved or reduced ejection fraction, an SGLT2 inhibitor (including SGLT1/2 inhibitor) with proven benefit in this population is recommended to reduce the risk of worsening heart failure and cardiovascular death. [A]
 - **10.41b** In people with type 2 diabetes and established heart failure with either preserved or reduced ejection fraction, an SGLT2 inhibitor with proven benefit in this population is recommended to improve quality of life. [A]
+
+## Cardiovascular and Kidney Protection in CKD
+- 
 - **10.42** For individuals with type 2 diabetes and CKD with albuminuria treated with maximum tolerated doses of ACE inhibitor or ARB, recommend treatment with a nonsteroidal MRA with demonstrated benefit to improve cardiovascular outcomes and reduce the risk of CKD progression. [A]
+
+## ACE Inhibitors and ARBs for Cardiovascular Risk Reduction
+
 - **10.43** In individuals with diabetes aged ≥55 years with established ASCVD or multiple ASCVD risk factors, ACE inhibitor or ARB therapy is recommended to reduce the risk of cardiovascular events. [A]
+
+## Management of Asymptomatic Stage B Heart Failure
+
 - **10.44a** In individuals with diabetes and asymptomatic (stage B) heart failure, an interprofessional approach to optimize guideline-directed medical therapy, which should include a cardiovascular disease specialist, is recommended to reduce the risk for progression to symptomatic (stage C) heart failure. [A]
 - **10.44b** In individuals with diabetes and asymptomatic (stage B) heart failure, ACE inhibitors or ARBs and β-blockers are recommended to reduce the risk for progression to symptomatic (stage C) heart failure. [A]
 - **10.44c** In individuals with type 2 diabetes and asymptomatic (stage B) heart failure or with high risk of or established cardiovascular disease, treatment with an SGLT inhibitor with proven heart failure prevention benefit [A] or a GLP-1 RA with heart failure prevention benefit [B] is recommended to reduce the risk of hospitalization for heart failure.
+
+## GLP-1–Based Therapy for Obesity and HFpEF
+
 - **10.44d** In adults with type 2 diabetes, obesity, and symptomatic heart failure with preserved ejection fraction (HFpEF), the treatment plan should include a dual GIP/GLP-1 RA [A] or a GLP-1 RA [B] with demonstrated benefit for reduction in heart failure events.
 - **10.44e** In adults with type 2 diabetes, obesity, and symptomatic HFpEF, the treatment plan should include a dual GIP/GLP-1 RA or a GLP-1 RA with demonstrated benefit for reduction in heart failure symptoms. [A]
+
+## Nonsteroidal Mineralocorticoid Receptor Antagonists for Heart Failure Prevention
+
 - **10.44f** In individuals with type 2 diabetes and CKD, recommend treatment with a nonsteroidal MRA with demonstrated benefit to reduce the risk of hospitalization for heart failure. [A]
+
+## Guideline-Directed Therapy for Myocardial Infarction and Stage C Heart Failure
+
 - **10.44g** In individuals with diabetes, guideline-directed medical therapy for myocardial infarction and symptomatic stage C heart failure is recommended with ACE inhibitors or ARBs (including ARBs and neprilysin inhibitors), MRAs, β-blockers, and SGLT2 inhibitors. [A]
-- **10.44h** In individuals with diabetes and symptomatic stage C heart failure with ejection fraction >40%, a nonsteroidal MRA with proven benefit in reducing worsening heart failure events is recommended. [A] A nonsteroidal MRA should not be used with an MRA.
+- **10.44h** In individuals with diabetes and symptomatic stage C heart failure with ejection fraction >40%, a nonsteroidal MRA with proven benefit in reducing worsening heart failure events is recommended. A nonsteroidal MRA should not be used with a steroidal MRA.
+
+## Metformin Use in Heart Failure
+
 - **10.45** In people with type 2 diabetes with stable heart failure, metformin may be continued for glucose lowering if eGFR remains >30 mL/min/1.73 m² but should be avoided in unstable or hospitalized individuals with heart failure. [B]
+
+## Diabetic Ketoacidosis Risk With SGLT Inhibitors
+
 - **10.46** Educate individuals with diabetes who are at risk for developing diabetic ketoacidosis and who are treated with SGLT inhibition on the risks and signs of ketoacidosis and methods of risk mitigation management, provide them with appropriate tools for ketone measurement (i.e., serum β-hydroxybutyrate), and discourage a ketogenic eating pattern. [E]

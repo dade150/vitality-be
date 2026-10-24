@@ -1,28 +1,19 @@
 ---
-doc_id: niddk-continuous-glucose-monitoring-t2d
-title: Continuous Glucose Monitoring in Type 2 Diabetes
-source_org: NIDDK, National Institutes of Health
-source_title: Continuous Glucose Monitoring
-source_url: https://www.niddk.nih.gov/health-information/diabetes/overview/managing-diabetes/continuous-glucose-monitoring
-doc_type: patient_guide
-audience: patient
-population: adults_with_type_2_diabetes
-topic:
-  - continuous glucose monitoring
-  - CGM
-  - blood glucose monitoring
-  - glucose trends
-  - glucose alerts
-  - hypoglycemia
-  - diabetes devices
-  - sensor care
-language: en
-jurisdiction: US
-last_verified: null
+doc_id: "niddk-cgm-t2d"
+source_name: "Continuous Glucose Monitoring in Type 2 Diabetes"
+source_org: "NIDDK, National Institutes of Health"
+source_file: "continuous-glucose-monitoring.txt"
+source_path: "sources/farmaci/continuous-glucose-monitoring.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "US"
+language: "en"
+population: "adults_with_type_2_diabetes"
+publication_year: null
+last_verified: 2026-10-24
 can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
-
-# Continuous Glucose Monitoring in Type 2 Diabetes
 
 ## 1. What Is Continuous Glucose Monitoring?
 

@@ -1,20 +1,18 @@
 ---
-titolo: "Ipoglicemia nel diabete: soglia, sintomi, trattamento, glucagone, prevenzione, notte e guida"
-fonte: "ISSalute, voce 'Ipoglicemia' (ultimo aggiornamento della fonte: 20 dicembre 2021)"
-ente: "Istituto Superiore di Sanità (ISS)"
-lingua_originale: "italiano"
-uso: "RAG - gestione emergenze diabetiche: ipoglicemia lieve e grave nelle persone con diabete"
-popolazione: "Persone con diabete (in particolare in terapia con insulina o farmaci ipoglicemizzanti), familiari e caregiver"
-content_scope:
-  - ipoglicemia
-  - soglia_e_sintomi
-  - regola_del_15
-  - glucagone
-  - emergenza_diabetica
-  - prevenzione_ipoglicemia
-  - ipoglicemia_notturna
-  - ipoglicemia_e_guida
-note: "Testo ripulito e riorganizzato in 5 chunk autonomi, fedele alla sola fonte ISSalute. Rimossi i criteri diagnostici generali, le cause rare e l'ipoglicemia nelle persone senza diabete. Escluse le manovre con gel, miele o marmellata nelle guance e ogni trattamento orale su persone non pienamente vigili, per motivi di sicurezza."
+doc_id: "iss-ipoglicemia-diabete"
+source_name: "Ipoglicemia nel diabete: soglia, sintomi e trattamento"
+source_org: "ISS"
+source_file: "ipoglicemia_issalute.txt"
+source_path: "./sources/complicanze/ipoglicemia_issalute.txt"
+doc_type: "patient_information"
+audience: "general_public"
+jurisdiction: "IT"
+language: "it"
+population: "Persone con diabete, familiari e caregiver"
+publication_year: 2021
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
 # Ipoglicemia nel diabete

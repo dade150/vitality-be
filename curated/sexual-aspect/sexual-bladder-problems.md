@@ -1,29 +1,21 @@
 ---
-doc_id: niddk-diabetes-sexual-bladder-problems
-title: "Diabetes, Sexual, and Bladder Problems"
+doc_id: "niddk-diabetes-sexual-bladder-problems"
+source_name: "Diabetes, Sexual, and Bladder Problems"
 source_org: "National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK), NIH"
-source_url: "https://www.niddk.nih.gov/health-information/diabetes/overview/preventing-problems/sexual-bladder-problems"
-doc_type: patient_guide
-audience: patient
-population: adults_with_diabetes
-topic:
-  - type_2_diabetes
-  - sexual_health
-  - erectile_dysfunction
-  - female_sexual_function
-  - fertility
-  - diabetic_neuropathy
-  - bladder_health
-  - psychological_wellbeing
-language: en
-jurisdiction: US
-last_verified: null
+source_file: "sexual-bladder-problems.txt"
+source_path: "sources/sexual-aspect/sexual-bladder-problems.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "US"
+language: "en"
+population: "adults_with_diabetes"
+publication_year: null
+last_verified: 2026-10-24
 can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Diabetes, Sexual, and Bladder Problems
-
-## Overview
+## Diabetes, Sexual, and Bladder Problems: Overview
 
 Sexual and bladder problems are common with aging, but diabetes can contribute to their development or make them worse. People with diabetes may experience difficulties with sexual function or satisfaction, urinary leakage, frequent urination, urgency, or difficulty emptying the bladder.
 
@@ -59,7 +51,7 @@ NIDDK also notes that genetic factors may influence susceptibility to diabetic n
 
 Changes in blood vessels, nerves, hormones, and emotional health may affect sexual function and fertility in men with diabetes.
 
-### Erectile dysfunction
+## Erectile dysfunction
 
 Erectile dysfunction (ED) is the inability to achieve or maintain an erection firm enough for satisfactory sexual intercourse.
 
@@ -69,7 +61,7 @@ Nerve damage and circulation problems may contribute to ED. Managing diabetes ma
 
 ED can have several causes. Clinical assessment is needed rather than assuming that diabetes is the only explanation.
 
-### Retrograde ejaculation
+## Retrograde ejaculation
 
 Diabetes can sometimes cause retrograde ejaculation. In this condition, some or all of the semen enters the bladder instead of leaving the penis during ejaculation. The semen is subsequently passed out with urine.
 
@@ -77,13 +69,13 @@ Some men may experience little or no visible ejaculation. A healthcare professio
 
 Retrograde ejaculation may be relevant when a person is experiencing fertility difficulties.
 
-### Peyronie's disease and penile curvature
+## Peyronie's disease and penile curvature
 
 Men with diabetes are more likely to have Peyronie's disease, a condition involving scar tissue, or plaque, in the penis. This can cause the penis to curve during an erection.
 
 Penile curvature may make sexual intercourse difficult or painful. Some men with Peyronie's disease also experience erectile dysfunction.
 
-### Low testosterone
+## Low testosterone
 
 Testosterone levels naturally decline with age, but abnormally low testosterone may contribute to erectile difficulties, reduced sexual desire, fatigue, or depressed mood.
 
@@ -93,7 +85,7 @@ If low testosterone is suspected, a healthcare professional may recommend blood 
 
 NIDDK notes that testosterone therapy may improve some sexual problems in men with diabetes, but it carries potential risks and is not appropriate for everyone. Treatment should be discussed with a healthcare professional rather than started without evaluation.
 
-### Fertility problems
+## Fertility problems
 
 Some studies suggest that diabetes may affect sperm movement and the ability of sperm to fertilize an egg. Retrograde ejaculation can also interfere with conception.
 
@@ -114,7 +106,7 @@ Potential contributing factors include:
 
 A healthcare professional may recommend a physical examination, including a pelvic examination, and blood or urine tests to investigate symptoms.
 
-### Reduced sexual desire and response
+## Reduced sexual desire and response
 
 Sexual difficulties may include:
 
@@ -127,7 +119,7 @@ Both high and low blood glucose may affect sexual arousal. Fatigue, depression, 
 
 Women who maintain blood glucose within their individualized target range may be less likely to develop nerve damage that can contribute to sexual difficulties. However, sexual symptoms may have multiple causes and may require specific assessment and treatment.
 
-### Vaginal dryness and painful sex
+## Vaginal dryness and painful sex
 
 Diabetes-related nerve damage may affect the signals involved in vaginal lubrication. Vaginal dryness can contribute to discomfort or pain during sexual intercourse.
 
@@ -135,13 +127,13 @@ A vaginal lubricant may help when dryness is contributing to discomfort. Persist
 
 Good long-term diabetes management may help reduce the risk of complications involving the nerves.
 
-### Yeast infections
+## Yeast infections
 
 Women with diabetes may be more likely to develop vaginal yeast infections, particularly when blood glucose levels are elevated. These infections can cause discomfort or pain and interfere with sexual activity.
 
 Symptoms of yeast infection can resemble those of other conditions, including sexually transmitted infections. NIDDK advises discussing symptoms with a healthcare professional rather than assuming the cause.
 
-### Pregnancy and fertility
+## Pregnancy and fertility
 
 Women with diabetes who plan to become pregnant should discuss glucose management with their healthcare team before conception. High blood glucose during the early weeks of pregnancy can harm the developing baby, even before pregnancy is recognized.
 
@@ -155,25 +147,25 @@ Diabetes-related nerve damage can affect bladder function. Overweight and obesit
 
 Bladder symptoms are often treatable and should not simply be accepted as an unavoidable consequence of aging or diabetes. Depending on the symptoms, evaluation may include blood and urine tests or urodynamic testing.
 
-### Frequent and urgent urination
+## Frequent and urgent urination
 
 Persistently high blood glucose can cause frequent urination. Some people with diabetes also experience a sudden, difficult-to-control urge to urinate, including at night.
 
 Urinary urgency and frequency can interfere with daily activities and sexual intimacy. A healthcare professional can assess possible causes and treatment options.
 
-### Difficulty emptying the bladder
+## Difficulty emptying the bladder
 
 Diabetic nerve damage may reduce awareness of bladder fullness or interfere with bladder muscle function. This can result in urinary retention, in which urine remains in the bladder after an attempt to empty it.
 
 Urinary retention may contribute to urinary tract infections, leakage, and a persistent sensation of needing to urinate. Suspected retention should be assessed by a healthcare professional.
 
-### Urinary incontinence
+## Urinary incontinence
 
 People with diabetes may experience different forms of urinary incontinence. Potential contributors include nerve damage, obesity, and bladder infections.
 
 Urine leakage may cause embarrassment or lead people to avoid activities they previously enjoyed, including sexual activity. Management depends on the underlying cause. For people with overweight or obesity, weight management may help reduce leakage.
 
-### Urinary tract infections
+## Urinary tract infections
 
 People with diabetes are more likely to develop urinary tract or bladder infections. Symptoms such as frequent, urgent, or painful urination warrant medical assessment.
 

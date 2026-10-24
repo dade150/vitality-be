@@ -1,22 +1,17 @@
 ---
-titolo: "Complicanze del diabete: croniche (cardiovascolari, nefropatia, neuropatia, retinopatia, piede diabetico, parodontopatia, disfunzione sessuale) e acute (chetoacidosi, ipoglicemia)"
-fonte: "SID, testo divulgativo 'Complicanze del diabete' (data di pubblicazione non specificata nel testo fornito)"
-ente: "Società Italiana di Diabetologia (SID)"
-lingua_originale: "italiano"
-uso: "RAG - complicanze croniche e acute del diabete, con prevenzione, trattamento e professionisti di riferimento"
-popolazione: "Persone con diabete, in particolare di tipo 2, familiari e caregiver"
-content_scope:
-  - complicanze_croniche
-  - malattie_cardiovascolari
-  - nefropatia_diabetica
-  - neuropatia_diabetica
-  - retinopatia_diabetica
-  - piede_diabetico
-  - parodontopatia
-  - disfunzione_sessuale
-  - chetoacidosi_diabetica
-  - ipoglicemia
-note: "Testo ripulito e riorganizzato in chunk autonomi (uno per complicanza), fedele alla sola fonte SID. Mantenute le sezioni 'Di cosa si tratta', 'Come si cura' e 'Professionisti'. Le informazioni sui farmaci sono descrittive e non sostituiscono la prescrizione del diabetologo. Correzioni formali ai refusi del testo originale."
+doc_id: "sid-complicanze-diabete"
+source_name: "Complicanze del diabete: croniche e acute"
+source_org: "SID"
+source_file: "complicanze_diabete_sid.md"
+source_path: "./sources/complicanze/complicanze_diabete_sid.md"
+doc_type: "patient_information"
+audience: "general_public"
+jurisdiction: "IT"
+language: "it"
+population: "Persone con diabete, familiari e caregiver"
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
 # Complicanze del diabete (fonte SID)

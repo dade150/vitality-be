@@ -1,22 +1,20 @@
 ---
-doc_id: ada2026-ch7-recs
-source_name: "ADA Standards of Care in Diabetes 2026 - 7. Diabetes Technology: Standards of Care in Diabetes—2026"
-source_org: ADA
-source_url: https://doi.org/10.2337/dc26-S007
-doc_type: clinical_guideline
-audience: clinician
-jurisdiction: US/INT
-language: en
-last_verified: 2026-10-16
-can_quote_numbers: false
-license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissions@diabetes.org)"
+doc_id: "ada2026-ch7-recs"
+source_name: "ADA Standards of Care in Diabetes 2026 - 7. Diabetes Technology"
+source_org: "ADA"
+source_file: "dc26s007.pdf"
+source_path: "./sources/ada/2026/dc26s007.pdf"
+doc_type: "clinical_guideline"
+audience: "medical_professionals_and_rag_systems"
+jurisdiction: "US/INT"
+language: "en"
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG. Non esporre o distribuire il file originale."
 ---
 
 
-# 7. Diabetes Technology: Standards of Care in Diabetes—2026 - raccomandazioni
-
-
-## GENERAL DEVICE PRINCIPLES
+## Diabetes Technology: Standards of Care in Diabetes—2026: GENERAL DEVICE PRINCIPLES
 
 - **7.1** Diabetes devices should be offered to people with diabetes. [A]
 - **7.2** The type(s) and selection of devices should be individualized based on a person’s specific needs, circumstances, preferences, and skill level. In the setting of an individual whose diabetes is partially or wholly managed by someone else (e.g., a young child or a person with cognitive impairment or dexterity, psychosocial issues, and/or physical limitations), the caregiver’s skills and preferences are integral to the decision-making process. [E]
@@ -47,7 +45,7 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 
 ## INSULIN DELIVERY / Insulin Syringes and Pens
 
-- **7.20** For people with insulin-requiring diabetes on multiple daily injections (MDI), insulin pens are preferred in most cases. Still, insulin syringes may be used for insulin delivery consider-ing individual and caregiver preference, insulin type, availability in vials, dosing therapy, cost, and self-management capabilities. [C]
+- **7.20** For people with insulin-requiring diabetes on multiple daily injections (MDI), insulin pens are preferred in most cases. Still, insulin syringes may be used for insulin delivery considering individual and caregiver preference, insulin type, availability in vials, dosing therapy, cost, and self-management capabilities. [C]
 - **7.21** Insulin pens or insulin injection aids are recommended for people with dexterity issues or vision impairment or when decided by shared decision-making to facilitate the accurate dosing and administration of insulin. [C]
 - **7.22** Offer connected insulin pens for people with diabetes taking multiple daily insulin injections when appropriate. [B]
 - **7.23** FDA-approved insulin dose calculators/decision support systems may be helpful for calculating insulin doses. [B]

@@ -1,13 +1,18 @@
 ---
-fonte: "Exercise/Physical Activity in Individuals with Type 2 Diabetes: A Consensus Statement from the American College of Sports Medicine"
-autori: Kanaley JA, Colberg SR, Corcoran MH, Malin SK, Rodriguez NR, Crespo CJ, Kirwan JP, Zierath JR
-ente: American College of Sports Medicine (ACSM)
-rivista: Medicine & Science in Sports & Exercise (2022)
-identificativi: PMID 35029593, PMCID PMC8802999
-anno: 2022
-lingua_originale: inglese
-uso: RAG - attività fisica e sport nel diabete di tipo 2
-note: testo ripulito e tradotto in italiano; rimossi metadati, numeri di citazione, bibliografia, "future directions" e parti su disuguaglianze socio-ambientali specifiche degli USA; tabelle ricostruite in forma testuale
+doc_id: "acsm-physical-activity-2022"
+source_name: "Exercise/Physical Activity in Individuals with Type 2 Diabetes: A Consensus Statement from the American College of Sports Medicine"
+source_org: "American College of Sports Medicine (ACSM)"
+source_file: "ExercisePhysical Activity in Individuals with Type 2 Diabetes A Consensus Statement from the American College of Sports Medicine.docx"
+source_path: "sources/sport/ExercisePhysical Activity in Individuals with Type 2 Diabetes A Consensus Statement from the American College of Sports Medicine.docx"
+doc_type: "consensus_statement"
+audience: "healthcare_professionals"
+jurisdiction: "US/INT"
+language: "it"
+population: "adulti con diabete di tipo 2"
+publication_year: 2022
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
 # ACSM 2022 - Esercizio e attività fisica nel diabete di tipo 2
@@ -24,28 +29,26 @@ Aggiorna la posizione ACSM/ADA del 2010. Include l'attività fisica (AF) in sens
 
 ---
 
-## 2. Effetti dei diversi tipi di esercizio
-
-### Aerobico
+## Effetti dei diversi tipi di esercizio: Aerobico
 - Migliora la sensibilità insulinica nel T2D anche a breve termine. Meta-analisi: riduzione dell'emoglobina glicata (A1c) di **0,5-0,7%**, con meno picchi iperglicemici giornalieri.
 - Migliora anche lipidi, pressione, altri parametri metabolici e forma fisica, **anche senza perdita di peso**.
 
-### Di forza (resistenza)
+## Effetti dei diversi tipi di esercizio: Di forza (resistenza)
 - Nel T2D porta tipicamente miglioramenti del 10-15% di forza, densità ossea, pressione, lipidi, massa muscolare e sensibilità insulinica.
 - Negli anziani con T2D, associato a modesta perdita di peso, può aumentare la massa magra e ridurre l'A1c fino a tre volte più di una dieta ipocalorica senza esercizio (in cui si perde massa muscolare).
 - Una meta-analisi suggerisce che l'allenamento di forza ad alta intensità sia più utile di quello a bassa-moderata per controllo glicemico e riduzione dei livelli di insulina.
 
-### Combinato (aerobico + forza)
+## Effetti dei diversi tipi di esercizio: Combinato (aerobico + forza)
 - Può essere superiore a ciascuna modalità da sola per la riduzione dell'A1c, anche se in alcuni studi il gruppo combinato aveva un volume di esercizio maggiore.
 - Tutte e tre le modalità migliorano glicemia e sensibilità insulinica.
 
-### Allenamento a intervalli ad alta intensità (HIIE)
+## Effetti dei diversi tipi di esercizio: Allenamento a intervalli ad alta intensità (HIIE)
 - Definizione: esercizio aerobico al 65-90% del VO2picco o 75-95% della frequenza cardiaca di picco, per 10 secondi - 4 minuti, con 12 secondi - 5 minuti di recupero attivo o passivo.
 - Può essere efficiente in termini di tempo. Una singola seduta (10 × 60 s in bicicletta a circa il 90% della FC massima) riduce l'iperglicemia post-prandiale nel T2D. Migliora fitness, riduce A1c e indice di massa corporea (BMI).
 - A parità di dispendio energetico, rispetto alla camminata continua dà maggiore fitness, miglior composizione corporea e miglior glicemia al monitoraggio continuo (CGM).
 - **Cautele:** chi lo pratica deve monitorare la propria risposta, perché un allenamento intenso cronico può causare iperglicemia transitoria post-esercizio. Gli eventi avversi riportati (nel 34% degli studi di una meta-analisi) sono per lo più lesioni muscolo-scheletriche legate all'HIIE più che all'allenamento moderato.
 
-### Confronto fra tipi di esercizio
+## Effetti dei diversi tipi di esercizio: Confronto fra tipi di esercizio
 - A parità di dispendio energetico, glicemia e sensibilità insulinica migliorano in modo simile con le diverse modalità di esercizio strutturato.
 - Altre attività: lo **yoga** può migliorare A1c, lipidi e composizione corporea; il **tai chi** può migliorare controllo glicemico, equilibrio, sintomi neuropatici e qualità di vita; anche qigong e pilates possono dare benefici. Servono altri studi per confermare.
 
@@ -68,15 +71,13 @@ Aggiorna la posizione ACSM/ADA del 2010. Include l'attività fisica (AF) in sens
 
 ---
 
-## 5. Raccomandazioni di AF per adulti e anziani con T2D
-
-### Linee guida generali (Physical Activity Guidelines 2018)
+## Raccomandazioni di AF per adulti e anziani con T2D: Linee guida generali (Physical Activity Guidelines 2018)
 - Muoversi di più e stare meno seduti durante il giorno; qualsiasi attività è meglio di nessuna.
 - Almeno **150-300 min/settimana di AF aerobica moderata**, oppure **75-150 min/settimana vigorosa**, o una combinazione equivalente, distribuiti nella settimana. Benefici aggiuntivi oltre 300 minuti.
 - Attività di rinforzo muscolare di intensità moderata o maggiore, che coinvolgano tutti i principali gruppi muscolari, **2 o più giorni a settimana**.
 - **Anziani:** stesse indicazioni degli adulti sani, più attività multicomponente con allenamento dell'equilibrio; regolare lo sforzo in base al proprio livello di forma; capire come le malattie croniche influenzano la capacità di muoversi in sicurezza; se non si riescono a fare 150 minuti, fare quanto consentono capacità e condizioni.
 
-### Prescrizione per adulti con T2D (sintesi tabella)
+## Raccomandazioni di AF per adulti e anziani con T2D: Prescrizione per adulti con T2D (sintesi tabella)
 
 | Tipo | Esempi | Intensità | Frequenza | Durata | Progressione |
 |---|---|---|---|---|---|
@@ -85,19 +86,19 @@ Aggiorna la posizione ACSM/ADA del 2010. Include l'attività fisica (AF) in sens
 | Flessibilità | stretching statico, dinamico o PNF; yoga, tai chi | fino al punto di tensione o lieve fastidio | ≥ 2-3 giorni/sett, a muscoli e articolazioni riscaldati | 10-30 secondi per stiramento, 2-4 ripetizioni | Aumentare l'ampiezza se non dolorosa |
 | Equilibrio | esercizi di equilibrio, lavoro di gambe e core, yoga, tai chi | nessuna intensità prestabilita | ≥ 2-3 giorni/sett | nessuna durata prestabilita | Con cautela per ridurre il rischio di cadute |
 
-### Note per tipo
+## Raccomandazioni di AF per adulti e anziani con T2D: Note per tipo
 - **Aerobico:** il limite di non più di due giorni di pausa è dovuto al carattere transitorio del miglioramento dell'azione insulinica. Adulti con altre patologie e anziani fragili devono fare tutta l'attività aerobica che la loro salute fisica e mentale consente.
 - **Forza:** chi non riesce a rispettare le raccomandazioni deve puntare a migliorare fitness funzionale ed equilibrio. Gli interventi combinati possono essere superiori.
 - **Flessibilità:** utile per anziani con T2D; la mobilità articolare è limitata dalla glicazione legata all'età, che l'iperglicemia può accelerare. Lo stretching non cambia in genere la glicemia (salvo se parte di yoga), ma è facile e a bassa intensità, quindi può essere un ingresso nell'attività fisica per chi è poco allenato o anziano.
 - **Equilibrio:** molti esercizi di gambe e core valgono anche come allenamento dell'equilibrio. Gli esercizi di equilibrio possono ridurre il rischio di cadute anche con neuropatia periferica, anche a casa.
 
-### Sedentarietà e pause attive
+## Raccomandazioni di AF per adulti e anziani con T2D: Sedentarietà e pause attive
 - Il tempo sedentario aumenta il rischio di T2D, indipendentemente dall'AF svolta; un'ora in più di sedentarietà al giorno è associata a +22% di probabilità di T2D in chi sta seduto 9 ore al giorno.
 - **Nel T2D, interrompere la seduta prolungata** con camminata leggera o semplici esercizi di forza per **3 minuti ogni 30 minuti** riduce glicemia post-prandiale, insulina e trigliceridi. Sostituire parte del tempo seduto con stazione eretta e camminata leggera può migliorare glicemia delle 24 ore e sensibilità insulinica più dell'esercizio strutturato.
 - Salire le scale, brevi pause di 5 minuti ogni ora, o brevi sessioni intense (6 × 1 minuto di camminata veloce) 30 minuti prima dei pasti possono ridurre la glicemia più di una singola camminata moderata di 30 minuti.
 - Non è dimostrato che le pause riducano l'iperglicemia nella vita quotidiana, né i benefici clinici a lungo termine.
 
-### Adolescenti e giovani
+## Raccomandazioni di AF per adulti e anziani con T2D: Adolescenti e giovani
 - Gli obiettivi di AF sono gli stessi dei giovani in generale: **60 minuti o più al giorno** di AF moderata-vigorosa (aerobica con attività vigorosa almeno 3 giorni/settimana; rinforzo muscolare e osseo almeno 3 giorni/settimana).
 - Nei giovani il T2D comporta un declino più rapido della funzione delle cellule beta e un'accelerazione delle complicanze. Sono incoraggiati programmi di esercizio e gestione del peso a casa o in palestra.
 
@@ -115,9 +116,7 @@ Aggiorna la posizione ACSM/ADA del 2010. Include l'attività fisica (AF) in sens
 
 ---
 
-## 7. Gestione di problemi acuti e complicanze durante l'AF
-
-### Ipoglicemia
+## Gestione di problemi acuti e complicanze durante l'AF: Ipoglicemia
 - Chi controlla la glicemia solo con lo stile di vita ha rischio minimo.
 - Il rischio aumenta con **insulina** e **secretagoghi (sulfoniluree, glinidi)**. L'insulina assunta prima dell'esercizio aumenta il rischio durante lo sforzo: vanno considerati dose e momento.
 - Possono servire carboidrati se la glicemia pre-esercizio fa prevedere ipoglicemia durante o dopo l'attività e le dosi dei farmaci non vengono ridotte.
@@ -125,21 +124,21 @@ Aggiorna la posizione ACSM/ADA del 2010. Include l'attività fisica (AF) in sens
 - L'ipoglicemia tardiva è più rilevante quando le riserve di glicogeno sono esaurite (muscolo, fegato), ma di solito non è un problema per chi pratica esercizio ricreativo e non usa insulina. L'esercizio prolungato e intenso aumenta il rischio di ipoglicemia post-esercizio con insulina o secretagoghi.
 - Chi usa insulina o sulfoniluree (e forse glinidi nelle 2-3 ore prima dell'attività) deve **portare con sé carboidrati a rapido assorbimento** e avere glucagone disponibile se incline a ipoglicemie gravi.
 
-### Iperglicemia
+## Gestione di problemi acuti e complicanze durante l'AF: Iperglicemia
 - **Non iniziare l'esercizio con glicemia > 250 mg/dL (13,9 mmol/L) se sono presenti chetoni moderati o alti** nel sangue o nelle urine.
 - Con glicemia **> 300 mg/dL (16,7 mmol/L)** senza chetoni eccessivi: cautela, buona idratazione, iniziare solo se ci si sente bene. Con glicemia elevata iniziare solo attività leggera se asintomatici e ben idratati.
 - Attività brevi e intense (come l'HIIE) possono causare un aumento transitorio della glicemia, che di solito non richiede trattamento; un defaticamento a minore intensità può aiutare.
 - **Chetoacidosi con glicemia normale o poco alta** può verificarsi in adulti con T2D che assumono **inibitori SGLT-2**: l'AF va fatta solo se la persona si sente bene.
 
-### Caldo
+## Gestione di problemi acuti e complicanze durante l'AF: Caldo
 - L'invecchiamento e il T2D riducono la capacità di dissipare il calore (vasodilatazione cutanea e sudorazione alterate): rischio di colpo di calore e disidratazione, che può peggiorare l'iperglicemia. Alcune complicanze e farmaci aumentano il rischio.
 - Cautela in ambienti caldi; con AF regolare è possibile acclimatarsi.
 
-### Precauzioni generali
+## Gestione di problemi acuti e complicanze durante l'AF: Precauzioni generali
 - Valutazione medica (ed eventuale test) prima di attività più intense della camminata veloce in presenza di segni o sintomi CV, diabete di lunga durata, età avanzata o complicanze.
 - Idratarsi prima, durante e dopo; evitare le ore più calde e il sole diretto.
 
-### Precauzioni per complicanze comuni
+## Gestione di problemi acuti e complicanze durante l'AF: Precauzioni per complicanze comuni
 
 | Complicanza | Precauzioni |
 |---|---|
@@ -151,15 +150,13 @@ Aggiorna la posizione ACSM/ADA del 2010. Include l'attività fisica (AF) in sens
 
 ---
 
-## 8. Momento della giornata e alimentazione
-
-### Quando fare esercizio
+## Momento della giornata e alimentazione:  Quando fare esercizio
 - La maggior parte degli studi mostra che l'esercizio **dopo i pasti (post-prandiale)** controlla meglio i picchi glicemici, soprattutto con attività aerobica leggera-moderata. L'effetto dopo colazione non sempre si estende al pranzo.
 - Una **camminata a passo scelto dopo il pasto** o un allenamento di forza dopo il pasto riducono glicemia e trigliceridi dopo cena.
 - Un'attività di durata **≥ 45 minuti** dà i benefici più costanti; il dispendio energetico post-prandiale riduce la glicemia a prescindere da tipo e intensità.
 - Allenarsi di **pomeriggio** con HIIE ha ridotto la glicemia più del mattino (che in alcuni casi l'ha aumentata, soprattutto a digiuno). In programmi di 12 settimane mattina e pomeriggio hanno dato miglioramenti simili di A1c e glicemia a digiuno.
 
-### Alimentazione
+## Momento della giornata e alimentazione:  Alimentazione
 - Le persone con T2D dovrebbero puntare a piani alimentari sostenibili che considerino quantità e momento dei carboidrati insieme a uno stile di vita attivo.
 - Un piano sano: calorie adeguate, frutta, verdura, cereali integrali, latticini magri, carni magre, pollame, pesce, legumi, uova, frutta secca; poco grassi saturi e trans, colesterolo, sale e zuccheri aggiunti.
 - La riduzione dei carboidrati riduce peso e migliora la glicemia; modelli come mediterraneo, vegano, low-carbohydrate sono usati frequentemente. Per digiuno intermittente e alimentazione a tempo ci sono pochi studi nel T2D e i benefici glicemici non sono noti.
@@ -167,18 +164,16 @@ Aggiorna la posizione ACSM/ADA del 2010. Include l'attività fisica (AF) in sens
 
 ---
 
-## 9. Farmaci ed esercizio
-
-### Antidiabetici
+## Farmaci ed esercizio: Antidiabetici
 - **Metformina:** studi pilota suggeriscono che possa attenuare in parte i benefici dell'esercizio sulla sensibilità insulinica periferica e le adattazioni mitocondriali; ciò potrebbe contribuire alla variabilità individuale della risposta all'esercizio. Servono altre ricerche.
 - **Agonisti GLP-1:** possono migliorare A1c e glicemia a digiuno dopo allenamento aerobico, ma i risultati sono confusi dalla perdita di peso. **Inibitori SGLT-2:** vedi rischio di chetoacidosi con glicemia normale (sezione 7).
 - **Insulina:** in persone con T2D, una seduta di 45-60 minuti riduceva il tempo in iperglicemia e la variabilità glicemica sia con sia senza insulina. Chi usa insulina o secretagoghi deve integrare carboidrati (o ridurre l'insulina, se possibile) per prevenire l'ipoglicemia prima o dopo l'esercizio.
 
-### Altri farmaci
+## Farmaci ed esercizio: Altri farmaci
 - **Beta-bloccanti:** riducono la risposta della frequenza cardiaca e la capacità aerobica massima (circa 87% dell'atteso) e possono mascherare i sintomi dell'ipoglicemia. Possono però aumentare la capacità di esercizio in chi ha T2D e malattia CV riducendo l'ischemia. **Se si usano, monitorare l'intensità con la percezione dello sforzo (RPE) e non con la frequenza cardiaca.**
 - **Statine:** in un piccolo numero di persone si associano a rischio di miopatie (dolori e infiammazione muscolare), soprattutto con fibrati e niacina e iperglicemia.
 
-### Chirurgia bariatrica
+## Farmaci ed esercizio: Chirurgia bariatrica
 - È il mezzo più efficace per migliorare il controllo glicemico e ottenere la remissione del diabete nel lungo termine, ma meno del 10% dei pazienti rispetta le raccomandazioni di AF prima dell'intervento.
 - L'esercizio **prima** dell'intervento può ridurre il rischio chirurgico, migliorare il recupero e accorciare la degenza e aumenta la propensione a essere attivi dopo. L'esercizio **dopo** aiuta il mantenimento del peso, il controllo glicemico, la sensibilità insulinica, la funzione endoteliale, riduce il rischio CV e la perdita ossea, e l'allenamento di forza contrasta il calo di forza muscolare.
 

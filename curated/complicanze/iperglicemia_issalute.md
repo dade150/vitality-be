@@ -1,26 +1,21 @@
 ---
-titolo: "Iperglicemia nel diabete: sintomi, cause, cosa fare, segnali di allarme, prevenzione e complicanze"
-fonte: "ISSalute, voce 'Iperglicemia' (ultimo aggiornamento della fonte: 9 giugno 2026)"
-ente: "Istituto Superiore di Sanità (ISS)"
-lingua_originale: "italiano"
-uso: "RAG - gestione dell'iperglicemia e segnali di allarme nelle persone con diabete"
-popolazione: "Persone con diabete, familiari e caregiver"
-content_scope:
-  - iperglicemia
-  - sintomi_iperglicemia
-  - cause_iperglicemia
-  - segnali_di_allarme
-  - chetoacidosi_diabetica
-  - prevenzione_e_follow_up
-  - complicanze_iperglicemia
-note: "Testo ripulito e riorganizzato in 5 chunk autonomi, fedele alla sola fonte ISSalute. Rimossi i criteri diagnostici per diabete e prediabete, le cause rare (acromegalia, sindrome di Cushing, tumori del pancreas, ecc.) e gli aspetti di genere non legati alla gestione dell'episodio acuto. Le complicanze sono dettagliate nel file dedicato (fonte SID)."
+doc_id: "iss-iperglicemia-diabete"
+source_name: "Iperglicemia nel diabete: sintomi, cause e cosa fare"
+source_org: "ISS"
+source_file: "iperglicemia_issalute.txt"
+source_path: "./sources/complicanze/iperglicemia_issalute.txt"
+doc_type: "patient_information"
+audience: "general_public"
+jurisdiction: "IT"
+language: "it"
+population: "Persone con diabete, familiari e caregiver"
+publication_year: 2026
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Iperglicemia nel diabete
-
----
-
-## 1. Sintomi e possibili cause
+## Iperglicemia nel diabete: Sintomi e possibili cause
 
 **Contesto:** riconoscere l'iperglicemia in una persona con diabete.
 
@@ -61,7 +56,7 @@ Poiché possono essere dovuti al diabete, se compaiono in una persona che non sa
 - Nelle persone con diabete l'iperglicemia deve essere trattata con attenzione, con l'obiettivo di mantenere la glicemia il più possibile vicina ai valori normali.
 - Le persone con diabete devono **seguire i consigli del team diabetologico** da cui sono in cura e **rivolgersi al medico di famiglia il prima possibile o se non è raggiungibile subito, guardia medica o pronto soccorso in caso di iperglicemia**.
 - Nei casi di iperglicemia transitoria, in genere non è necessaria una terapia oppure si interviene sulla causa (ad esempio situazioni di stress o terapia con corticosteroidi).
-- **Rivolgersi immediatamente al medico** se la glicemia è elevata **e**che possono indicare un diabete non trattato in modo adeguato:
+- **Rivolgersi immediatamente al medico** se la glicemia è elevata e compare uno dei  seguenti segnali di allarme:
   - sensazione di stanchezza;
   - mal di stomaco;
   - difficoltà respiratorie;

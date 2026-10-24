@@ -1,15 +1,16 @@
 ---
-doc_id: ada2026-ch4-recs
-source_name: "ADA Standards of Care in Diabetes 2026 - 4. Comprehensive Medical Evaluation and Assessment of Comorbidities: Standards of Care in Diabetes—2026"
-source_org: ADA
-source_url: https://doi.org/10.2337/dc26-S004
-doc_type: clinical_guideline
-audience: clinician
-jurisdiction: US/INT
-language: en
-last_verified: 2026-10-16
-can_quote_numbers: false
-license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissions@diabetes.org)"
+doc_id: "ada2026-ch4-recs"
+source_name: "ADA Standards of Care in Diabetes 2026 - 4. Comprehensive Medical Evaluation and Assessment of Comorbidities"
+source_org: "ADA"
+source_file: "dc26s004.pdf"
+source_path: "./sources/ada/2026/dc26s004.pdf"
+doc_type: "clinical_guideline"
+audience: "medical_professionals_and_rag_systems"
+jurisdiction: "US/INT"
+language: "en"
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG. Non esporre o distribuire il file originale."
 ---
 
 
@@ -60,27 +61,45 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 
 ## ASSESSMENT OF COMORBIDITIES / Sexual Health in Women
 
-- **4.18** In women with diabetes or prediabetes, inquire about sexual health by screening for desire (libido), arousal, and orgasm difficulties, particularly in those who experience depression and/or anxiety and those with recur-rent urinary tract infections. [B]
+- **4.18** In women with diabetes or prediabetes, inquire about sexual health by screening for desire (libido), arousal, and orgasm difficulties, particularly in those who experience depression and/or anxiety and those with recurrent urinary tract infections. [B]
 - **4.19** In postmenopausal women with diabetes or prediabetes, screen for symptoms and/or signs of genitourinary syndrome of menopause, including vaginal dryness and dyspareunia. [B]
 
 ## ASSESSMENT OF COMORBIDITIES / Metabolic Dysfunction–Associated Steatotic Liver Disease and Metabolic Dysfunction–Associated Steatohepatitis
 
-- **4.19a** Screen adults with type 2 diabetes or with prediabetes, particularly those with obesity or other cardiometabolic risk factors or established cardiovascular disease, for their risk of having or developing cirrhosis related to metabolic dysfunction– associated steatohepatitis (MASH) using a calculated fibrosis-4 index (FIB-4) (derived from age, ALT, AST, and platelets [mdcalc.com/calc/2200/ fibrosis4-fib-4-index-liver-fibrosis]), even if they have normal liver enzymes. [B]
+- **4.19a** Screen adults with type 2 diabetes or with prediabetes, particularly those with obesity or other cardiometabolic risk factors or established cardiovascular disease, for their risk of having or developing cirrhosis related to metabolic dysfunction– associated steatohepatitis (MASH) using a calculated fibrosis-4 index (FIB-4) (derived from age, ALT, AST, and platelets [https://www.mdcalc.com/calc/2200/fibrosis-4-fib-4-index-liver-fibrosis]), even if they have normal liver enzymes. [B]
 - **4.20b** Adults with diabetes or prediabetes with persistently elevated plasma aminotransferase levels for >6 months and low FIB-4 should be evaluated for other causes of liver disease. [B]
 - **4.21** Adults with type 2 diabetes or prediabetes with a FIB-4 ≥ 1.3 should have additional risk stratification by liver stiffness measurement with transient elastography, or, if unavailable, the enhanced liver fibrosis (ELF) test. [B]
 - **4.22** Refer adults with type 2 diabetes or prediabetes at higher risk for significant liver fibrosis (i.e., as indicated by FIB-4, liver stiffness measurement, or ELF) to a gastroenterologist or hepatologist for further evaluation and management. [B]
 
-## ASSESSMENT OF COMORBIDITIES / Management
+## Lifestyle Management of MASLD
 
 - **4.23** Adults with type 2 diabetes or prediabetes, particularly with overweight or obesity, who have metabolic dysfunction–associated steatotic liver disease (MASLD) should be recommended lifestyle changes using an interprofessional approach that promotes weight loss, ideally within a structured nutrition plan and physical activity program for cardiometabolic benefits [B] and histological improvement. [C]
+
+## Obesity Treatment and GLP-1–Based Therapy in MASLD
+
 - **4.24** In adults with type 2 diabetes, MASLD, and overweight or obesity, consider using a glucagon-like peptide 1 receptor agonist (GLP-1 RA) with demonstrated benefits in MASH [A] or a dual glucose-dependent insulinotropic polypeptide (GIP) and GLP-1 RA with potential benefits in MASH [B] for the treatment of obesity as an adjunctive therapy to lifestyle interventions for weight loss.
+
+## Pharmacologic Management of MASH and Liver Fibrosis Risk
+
 - **4.25a** In adults with type 2 diabetes and biopsy-proven MASH or those at high risk for liver fibrosis (based on noninvasive tests), a GLP-1 RA is preferred for glycemic management due to beneficial effects on MASH. [A] Pioglitazone [B] or a dual GIP and GLP-1 RA [B] can be considered for glycemic management due to potential beneficial effects on MASH.
 - **4.25b** Combination therapy with pioglitazone plus GLP-1 RA can be considered for the treatment of hyperglycemia in adults with type 2 diabetes with biopsy-proven MASH or those at high risk of liver fibrosis (identified with noninvasive tests) because of potential beneficial effects on MASH. [B]
-- **4.26** For consideration of treatment with a thyroid hormone receptor-β agonist in adults with type 2 diabetes or prediabetes with MASLD with moderate (F2) or advanced (F3) liver fibrosis on liver histology, or by a validated imaging-based or blood-based test, refer to a gastroenterologist or hepatologist with expertise in MASLD management. [A]
+
+## Thyroid Hormone Receptor-β Agonists and Specialist Referral
+
+- *4.26** For consideration of treatment with a thyroid hormone receptor-β agonist in adults with type 2 diabetes or prediabetes with MASLD with moderate (F2) or advanced (F3) liver fibrosis on liver histology, or by a validated imaging-based or blood-based test, refer to a gastroenterologist or hepatologist with expertise in MASLD management. [A]
 - **4.27** Treatment initiation and monitoring should be individualized and within the context of an interprofessional team that includes a gastroenterologist or hepatologist, consideration of individual preferences, and a careful shared-decision cost-benefit discussion. [B]
+
+## Glucose-Lowering Therapy in MASLD and Cirrhosis 
+
 - **4.28a** In adults with type 2 diabetes and MASLD, use of glucose-lowering therapies other than pioglitazone or GLP-1 RAs may be continued as clinically indicated, but these therapies lack evidence of benefit in MASH. [B]
 - **4.28b** Insulin therapy is the preferred agent for the treatment of hyperglycemia in adults with type 2 diabetes with decompensated cirrhosis. [C]
+
+## Cardiovascular Risk Management and Statin Therapy in MASLD 
+
 - **4.29a** Adults with type 2 diabetes and MASLD are at increased cardiovascular risk; therefore, comprehensive management of cardiovascular risk factors is recommended. [B]
 - **4.29b** Statin therapy is safe in adults with type 2 diabetes and compensated cirrhosis from MASLD and should be initiated or continued for cardiovascular risk reduction as clinically indicated. [B] In people with decompensated cirrhosis, statin therapy should be used with caution, and close monitoring is needed, given limited safety and efficacy data. [B]
+
+## Metabolic Surgery in MASH and Cirrhosis
+
 - **4.30a** Consider metabolic surgery in appropriate candidates as an option to treat MASH in adults with type 2 diabetes and obesity [B] and to improve cardiovascular outcomes. [B]
 - **4.30b** Metabolic surgery should be used with caution in adults with type 2 diabetes with compensated cirrhosis from MASLD [B] and is not recommended in decompensated cirrhosis. [B]

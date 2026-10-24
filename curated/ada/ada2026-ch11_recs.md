@@ -1,17 +1,17 @@
 ---
-doc_id: ada2026-ch11-recs
-source_name: "ADA Standards of Care in Diabetes 2026 - 11. Chronic Kidney Disease and Risk Management: Standards of Care in Diabetes—2026"
-source_org: ADA
-source_url: https://doi.org/10.2337/dc26-S011
-doc_type: clinical_guideline
-audience: clinician
-jurisdiction: US/INT
-language: en
-last_verified: 2026-10-16
-can_quote_numbers: false
-license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissions@diabetes.org)"
+doc_id: "ada2026-ch11-recs"
+source_name: "ADA Standards of Care in Diabetes 2026 - 11. Chronic Kidney Disease and Risk Management"
+source_org: "ADA"
+source_file: "dc26s011.pdf"
+source_path: "./sources/ada/2026/dc26s011.pdf"
+doc_type: "clinical_guideline"
+audience: "medical_professionals_and_rag_systems"
+jurisdiction: "US/INT"
+language: "en"
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG. Non esporre o distribuire il file originale."
 ---
-
 
 # 11. Chronic Kidney Disease and Risk Management: Standards of Care in Diabetes—2026 - raccomandazioni
 

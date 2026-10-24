@@ -1,15 +1,16 @@
 ---
-doc_id: ada2026-ch6-recs
-source_name: "ADA Standards of Care in Diabetes 2026 - 6. Glycemic Goals, Hypoglycemia, and Hyperglycemic Crises: Standards of Care in Diabetes—2026"
-source_org: ADA
-source_url: https://doi.org/10.2337/dc26-S006
-doc_type: clinical_guideline
-audience: clinician
-jurisdiction: US/INT
-language: en
-last_verified: 2026-10-16
-can_quote_numbers: false
-license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissions@diabetes.org)"
+doc_id: "ada2026-ch6-recs"
+source_name: "ADA Standards of Care in Diabetes 2026 - 6. Glycemic Goals, Hypoglycemia, and Hyperglycemic Crises"
+source_org: "ADA"
+source_file: "dc26s006.pdf"
+source_path: "./sources/ada/2026/dc26s006.pdf"
+doc_type: "clinical_guideline"
+audience: "medical_professionals_and_rag_systems"
+jurisdiction: "US/INT"
+language: "en"
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG. Non esporre o distribuire il file originale."
 ---
 
 
@@ -33,7 +34,7 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 - **6.8** Reassess glycemic goals based on the individualized criteria shown in Fig. 6.1. [E]
 - **6.9** Set a glycemic goal during consultations to improve outcomes. [A]
 
-## PREVENTION, AND TREATMENT
+## HYPOGLYCEMIA ASSESSMENT, PREVENTION, AND TREATMENT
 
 - **6.10** Review history of hypoglycemia at every clinical encounter for all individuals at risk for hypoglycemia, and evaluate hypoglycemic events as indicated. [C]
 - **6.11** Screen individuals at risk for hypoglycemia for impaired hypoglycemia awareness at least annually and when clinically appropriate. [E] Refer to a trained health care professional for evidence-based intervention to improve hypoglycemia awareness. [A]

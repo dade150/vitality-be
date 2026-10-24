@@ -1,25 +1,18 @@
 ---
-title: "Mental Health and Diabetes: Perspectives from People Living with Diabetes, Their Families and Carers"
-source_organization: "IDF Europe"
-source_type: "Patient perspectives and advocacy document"
-source_publication_year: "Not specified in the supplied excerpt"
+doc_id: "idf-europe-mental-health-diabetes"
+source_name: "Mental Health and Diabetes: Perspectives from People Living with Diabetes, Their Families and Carers"
+source_org: "IDF Europe"
+source_file: "IDF-Europe-booklet-on-Mental-Health_FINAL-1.pdf"
+source_path: "sources/mental-health/IDF-Europe-booklet-on-Mental-Health_FINAL-1.pdf"
+doc_type: "patient_perspectives"
+audience: "general_public, healthcare_professionals"
+jurisdiction: "EU/INT"
 language: "en"
-primary_focus: "Psychological wellbeing in type 2 diabetes"
-population_focus: "Adults living with type 2 diabetes"
-content_scope:
-  - diabetes_distress
-  - psychological_adjustment
-  - depression_and_stress
-  - stigma_and_discrimination
-  - social_support
-  - patient_centered_care
-evidence_types:
-  - organizational_context
-  - personal_testimony
-  - care_recommendations
-limitations:
-  - "Personal testimonies represent individual experiences and are not generalizable evidence."
-  - "Quantitative claims from the supplied excerpt were excluded where their original sources could not be verified."
+population: "Adults living with type 2 diabetes"
+publication_year: null
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
 # Mental Health and Diabetes: Perspectives from People Living with Diabetes, Their Families and Carers
@@ -38,9 +31,7 @@ Psychological difficulties may affect quality of life, personal relationships an
 
 People living with diabetes may benefit from timely, appropriate psychological support alongside their usual diabetes care. Support from family, friends, peers and healthcare professionals can also be important.
 
-## 2. Personal testimonies from people living with type 2 diabetes
-
-### 2.1 Erik: Acceptance and adjustment
+##  Personal testimonies from people living with type 2 diabetes: Erik: Acceptance and adjustment
 
 **Content type:** Personal testimony  
 **Diabetes type:** Type 2 diabetes  
@@ -55,7 +46,7 @@ Erik reports having lived with type 2 diabetes for 24 years. He describes his ex
 
 **Psychological relevance:** This testimony illustrates one person's experience of accepting and adapting to a long-term condition. It should not be interpreted as evidence that acceptance follows the same course for everyone or that psychological distress is absent when a person has accepted their diagnosis.
 
-### 2.2 Valerie: Stigma, the workplace and being heard
+##  Personal testimonies from people living with type 2 diabetes: Valerie: Stigma, the workplace and being heard
 
 **Content type:** Personal testimony  
 **Diabetes type:** Type 2 diabetes  
@@ -74,7 +65,7 @@ She also emphasizes that people living with diabetes develop substantial knowled
 
 **Psychological relevance:** This testimony highlights possible concerns about disclosure, social acceptance and workplace understanding. It also emphasizes the importance of listening to the patient's perspective and recognizing that treatment prescriptions alone do not capture the full experience of living with diabetes.
 
-### 2.3 Ken: Depression, stress and social support
+##  Personal testimonies from people living with type 2 diabetes: Ken: Depression, stress and social support
 
 **Content type:** Personal testimony  
 **Diabetes type:** Type 2 diabetes  

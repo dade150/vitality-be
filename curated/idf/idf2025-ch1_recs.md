@@ -1,18 +1,18 @@
 ---
-doc_id: idf2025-ch1-recs
+doc_id: "idf2025-ch1-recs"
 source_name: "IDF Global Clinical Practice Recommendations for Managing Type 2 Diabetes 2025 - Chapter 1: Detection of diabetes and intermediate hyperglycaemia, and prevention of type 2 diabetes"
-source_org: IDF
-source_file: IDF_Rec_2025.pdf
-doc_type: clinical_guideline
-audience: clinician
-jurisdiction: INT
-language: en
-diabetes_type: [T2]
-population: adulti (documento globale, non specifico per anziani fragili)
-resource_setting_note: "Optimal Care = contesti con risorse adeguate (rilevante per l'Italia); Basic Care = risorse limitate"
-last_verified: 2026-10-17
-can_quote_numbers: false
-license_note: "IDF: verificare condizioni di riuso e se serve il permesso scritto prima di pubblicare"
+source_org: "IDF"
+source_file: "IDF_Rec_2025.pdf"
+source_path: "sources/idf/IDF_Rec_2025.pdf"
+doc_type: "clinical_guideline"
+audience: "healthcare_professionals"
+jurisdiction: "INT"
+language: "en"
+population: "adulti a rischio o con diabete di tipo 2"
+publication_year: 2025
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
 

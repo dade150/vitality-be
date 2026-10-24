@@ -1,15 +1,16 @@
 ---
-doc_id: ada2026-ch5-recs
-source_name: "ADA Standards of Care in Diabetes 2026 - 5. Facilitating Positive Health Behaviors and Well-being to Improve Health Outcomes: Standards of Care in Diabetes—2026"
-source_org: ADA
-source_url: https://doi.org/10.2337/dc26-S005
-doc_type: clinical_guideline
-audience: clinician
-jurisdiction: US/INT
-language: en
-last_verified: 2026-10-16
-can_quote_numbers: false
-license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissions@diabetes.org)"
+doc_id: "ada2026-ch5-recs"
+source_name: "ADA Standards of Care in Diabetes 2026 - 5. Facilitating Positive Health Behaviors and Well-being"
+source_org: "ADA"
+source_file: "dc26s005.pdf"
+source_path: "./sources/ada/2026/dc26s005.pdf"
+doc_type: "clinical_guideline"
+audience: "medical_professionals_and_rag_systems"
+jurisdiction: "US/INT"
+language: "en"
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG. Non esporre o distribuire il file originale."
 ---
 
 
@@ -28,29 +29,77 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 - **5.8** Identify and address barriers to DSMES that exist at the payor, health system, clinic, health care professional, and individual levels. [E]
 - **5.9** Assess the social determinants of health to guide and design delivery of DSMES to maximize health equity across populations. [C]
 
-## MEDICAL NUTRITION THERAPY / Eating Patterns and Meal Planning
+## Individualized Medical Nutrition Therapy
 
 - **5.10** Provide individualized medical nutrition therapy by referring people with prediabetes or diabetes to a registered dietitian nutritionist, preferably one who has comprehensive experience in diabetes care. [A]
 - **5.11** Diabetes medical nutrition therapy can result in cost savings [B] and improved cardiometabolic outcomes [A] and should be reimbursed by insurance. [E]
+
+## Nutrition and Weight Management
+
 - **5.12** Provide an overweight or obesity treatment plan based on their nutrition, physical activity, and behavioral health status for all people with overweight or obesity, aiming for at least 5–7% weight loss. [A]
+
+## Individualized Meal Planning and Healthy Eating Patterns
+
 - **5.13** For diabetes prevention and management of people with prediabetes or diabetes, recommend individualized meal plans that keep nutrient quality, total calories, and metabolic goals in mind. [B]
 - **5.14** Eating patterns should emphasize key nutrition principles (inclusion of nonstarchy vegetables, whole fruits, legumes, lean proteins, whole grains, nuts and seeds, and low-fat dairy or nondairy alternatives) and minimize consumption of red meat, sugar-sweetened beverages, sweets, refined grains, processed and ultraprocessed foods in people with prediabetes and diabetes. [B]
+
+## Carbohydrate Intake and Glycemic Management
+
 - **5.15** Consider reducing carbohydrate intake for some adults with diabetes to improve glycemia. An effective way to achieve this is by limiting consumption of processed foods. [B]
+
+## Dietary Supplements and Micronutrients
+
 - **5.16** Assess intake of supplements, as supplementation with micronutrients (e.g., vitamins and minerals, such as magnesium or chromium) or herbs or spices (e.g., cinnamon and aloe vera) is not recommended for glycemic benefits. [C]
+
+## β-Carotene Supplementation
+
 - **5.17** Counsel against β-carotene supplementation, as there is evidence of harm for certain individuals and it confers no benefit. [B]
+
+## Alcohol Consumption and Diabetes
+
 - **5.18** Advise adults with diabetes and those at risk for diabetes who consume alcohol to not exceed the recommended daily limits. [B] Advise abstainers to not start drinking alcohol, even in moderation. [B]
 - **5.19** Counsel people with diabetes about the signs, symptoms, and self-management of delayed hypoglycemia and the importance of monitoring glucose after drinking alcohol to reduce hypoglycemia risk, especially when using insulin or insulin secretagogues. [B]
+
+## Sodium Intake and Hydration
+
 - **5.20** Counsel people with diabetes to limit sodium consumption to <2,300 mg/day, as clinically appropriate, and the best way to achieve this is through limiting consumption of processed foods. [B]
 - **5.21** Encourage people with diabetes and those at risk for diabetes to consume water over other beverages. [A]
+
+## Nonnutritive Sweeteners
+
 - **5.22** Counsel people with diabetes and those at risk for diabetes that nonnutritive sweeteners can be used in place of sugar-sweetened products if consumed in moderation and for the short term to reduce overall calorie and carbohydrate intake. [B]
+
+## Nutritional Adequacy During Weight Loss
+
 - **5.23** Counsel and regularly monitor individuals pursuing intentional weight loss to ensure adequate nutritional intake, with particular attention to preventing protein insufficiency and micronutrient deficiencies. [E]
+
+## Fiber and Carbohydrate Quality
+
 - **5.24** Emphasize minimally processed, nutrient-dense, high-fiber sources of carbohydrate (at least 14 g fiber per 1,000 kcal). [B]
 - **5.25** Advise people with diabetes and those at risk for diabetes to replace sugar-sweetened beverages (including any juices) with water or low-calorie or no-calorie beverages and minimize foods with added sugar to manage glycemia and reduce risk for cardiometabolic disease. [B]
+
+## Ketogenic Eating Patterns and Diabetic Ketoacidosis Risk
+
 - **5.26** Educate individuals with diabetes who are at risk for developing diabetic ketoacidosis and who are treated with sodium–glucose cotransporter inhibition on the risks and signs of ketoacidosis and methods of risk mitigation management, provide them with appropriate tools for ketone measurement (i.e., serum β-hydroxybutyrate), and discourage a ketogenic eating pattern. [E]
+
+## Macronutrients and Mealtime Insulin Dosing
+
 - **5.27** Provide education on the glycemic impact of carbohydrate, [A] fat, and protein [B] tailored to an individual’s needs, insulin plan, and preferences for care to optimize mealtime insulin dosing.
+
+## Consistency of Carbohydrate Intake With Fixed Insulin Doses
+
 - **5.28** Counsel people using fixed insulin doses about consistent patterns of carbohydrate intake with respect to time and amount while considering the insulin action time, as it can result in improved glycemia and reduce the risk for hypoglycemia. [B]
+
+## Plant-Based Protein and Cardiovascular Risk
+
 - **5.29** Counsel people with diabetes and those at risk for diabetes to incorporate more plant-based protein sources (e.g., nuts, seeds, and legumes) as part of an overall diverse eating pattern to reduce cardiovascular disease risk. [B]
+
+## Mediterranean Eating Pattern
+
 - **5.30** Counsel people with diabetes and those at risk for diabetes to consider an eating plan emphasizing elements of a Mediterranean eating pattern, which is rich in fatty fish, nuts, and seeds, to reduce cardiovascular disease risk [A] and improve glucose metabolism. [B]
+
+## Saturated Fat and Cardiovascular Risk
+
 - **5.31** Counsel people with diabetes and those at risk for diabetes to limit intake of foods high in saturated fat to help reduce cardiovascular disease risk. [B]
 
 ## MEDICAL NUTRITION THERAPY / Religious Fasting
@@ -63,7 +112,7 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 - **5.34** Evaluate baseline physical activity and sedentary time for all people with diabetes and those at risk for diabetes. For people who do not meet activity guidelines, encourage an increase in physical activities above baseline with the goal of meeting activity guidelines. [B] Counsel that prolonged sitting should be interrupted at least every 30 min for blood glucose and other benefits. [C]
 - **5.35** Counsel adults with type 1 diabetes [C] and type 2 diabetes [B] to engage in 2–3 sessions/week of resistance exercise on nonconsecutive days.
 - **5.36** Counsel most older adults with diabetes to engage in flexibility training and balance training 2–3 times/ week. [C]
-- **5.37** Counsel all people with diabetes who are treated with obesity pharmacotherapy or metabolic surgery that meeting physical activity recommendations, in particular musclestrengthening exercises, may be beneficial for maintaining lean body mass. [C]
+- **5.37** Counsel all people with diabetes who are treated with obesity pharmacotherapy or metabolic surgery that meeting physical activity recommendations, in particular muscle strengthening exercises, may be beneficial for maintaining lean body mass. [C]
 
 ## SMOKING CESSATION: TOBACCO, E-CIGARETTES, AND CANNABIS
 
@@ -86,8 +135,8 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 
 ## PSYCHOSOCIAL CARE / Depression
 
-- **5.45** Screen for depressive symptoms in all people with diabetes at least annually and more frequently among those with a history of depression. [B] Refer to qualified behavioral health professionals or other health care professionals with experience using evidence-based treatment approaches for de-pression in collaboration with the diabetes care team. [A]
-- **5.46** Rescreen for depression at di-agnosis of complications or when there are significant changes in medical status. [B]
+- **5.45** Screen for depressive symptoms in all people with diabetes at least annually and more frequently among those with a history of depression. [B] Refer to qualified behavioral health professionals or other health care professionals with experience using evidence-based treatment approaches for depression in collaboration with the diabetes care team. [A]
+- **5.46** Rescreen for depression at diagnosis of complications or when there are significant changes in medical status. [B]
 
 ## PSYCHOSOCIAL CARE / Disordered Eating Behavior
 
@@ -106,5 +155,5 @@ license_note: "ADA: text/data mining e ML richiedono permesso scritto (permissio
 
 ## PSYCHOSOCIAL CARE / Sleep Health
 
-- **5.53** Screen for sleep health in peo-ple with prediabetes or diabetes and in those at risk for diabetes, including screening for sleep disorders and diabetes-related sleep dis-ruptions. Refer to sleep medicine specialists and/or qualified behavioral health professionals or diabetes care team as indicated. [B]
+- **5.53** Screen for sleep health in people with prediabetes or diabetes and in those at risk for diabetes, including screening for sleep disorders and diabetes-related sleep dis-ruptions. Refer to sleep medicine specialists and/or qualified behavioral health professionals or diabetes care team as indicated. [B]
 - **5.54** Counsel people with diabetes to practice sleep-promoting routines and habits. [A]

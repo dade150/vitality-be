@@ -1,25 +1,21 @@
 ---
-doc_id: nhs-short-acting-insulin-travel
-title: "Storing and Travelling with Short-Acting Insulin"
-source_org: NHS
-source_url: https://www.nhs.uk/medicines/insulin/short-acting-insulin/storing-and-travelling-with-short-acting-insulin/
-doc_type: patient_guide
-topic:
-  - diabetes
-  - type_2_diabetes
-  - insulin
-  - medication_storage
-  - travel
-  - time_zones
-audience: patient
-language: en
-jurisdiction: UK
-last_verified: 2026-10-22
+doc_id: "nhs-short-acting-insulin-travel"
+source_name: "Storing and Travelling with Short-Acting Insulin"
+source_org: "NHS"
+source_file: "travelling_with_short_acting_insulin_uk.txt"
+source_path: "sources/travel/travelling_with_short_acting_insulin_uk.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "UK"
+language: "en"
+population: "people using short-acting insulin"
+publication_year: null
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Storing and Travelling with Short-Acting Insulin
-
-## Scope and brand names
+## Storing and Travelling with Short-Acting Insulin: Scope and brand names
 
 This guide covers the storage and travel considerations described by the NHS for short-acting insulin.
 
@@ -29,15 +25,13 @@ This guide covers the storage and travel considerations described by the NHS for
 
 The storage period and instructions may differ by brand and product. Follow the product-specific instructions and confirm any uncertainty with a diabetes nurse or pharmacist.
 
-## 1. Storing insulin at home
-
-### Maintain an adequate supply
+## Storing insulin at home: Maintain an adequate supply
 
 A doctor or diabetes nurse will advise how much insulin to keep at home, with the aim of having enough for approximately **1–2 months**.
 
 The NHS source recommends keeping at least one spare cartridge or vial available.
 
-### Unopened insulin cartridges
+## Storing insulin at home: Unopened insulin cartridges
 
 - Keep insulin cartridges in the refrigerator until they are needed for use.
 - Keep them away from the freezer compartment and from the cooling element inside the refrigerator.
@@ -54,7 +48,7 @@ Once a new cartridge has been started, the NHS source states that it can be kept
 - Insulin kept outside the refrigerator longer than the recommended period may no longer work properly. The source advises returning it to a pharmacy for disposal.
 - Consider writing the date the cartridge was removed from the refrigerator on its packaging to help track the storage period.
 
-### Storage summary
+## Storing insulin that is in use: Storage summary
 
 | Situation | NHS guidance |
 |---|---|
@@ -68,14 +62,14 @@ Once a new cartridge has been started, the NHS source states that it can be kept
 
 Using insulin does not in itself prevent travel, but preparation is important.
 
-### Supplies and access to insulin
+## Travelling with insulin: Supplies and access to insulin
 
 - Take an extra supply of insulin when travelling away from home.
 - Discuss the amount of additional medicine needed with a diabetes nurse.
 - Find out how insulin can be obtained at the destination if necessary.
 - Carry a recent prescription.
 
-### Temperature during travel
+## Travelling with insulin: Temperature during travel
 
 If insulin needs to be kept cool during the journey, the NHS source suggests using a cool bag.
 
@@ -83,7 +77,7 @@ If insulin needs to be kept cool during the journey, the NHS source suggests usi
 - Do not allow insulin to freeze.
 - Follow the storage instructions for the specific insulin product.
 
-### Flying with insulin
+## Travelling with insulin: Flying with insulin
 
 The NHS source recommends:
 
@@ -91,7 +85,7 @@ The NHS source recommends:
 - Taking a letter from a general practitioner (GP) or diabetes care team confirming the diagnosis and the need to carry insulin and related equipment, such as insulin pens and needles, on the plane.
 - Checking whether a fee applies for obtaining the letter.
 
-### Insulin pumps and glucose monitors
+## Travelling with insulin: Insulin pumps and glucose monitors
 
 If using an insulin pump or a glucose monitor with a wearable sensor, inform the airline well in advance.
 

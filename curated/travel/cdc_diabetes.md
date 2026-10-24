@@ -1,43 +1,37 @@
 ---
-doc_id: cdc-t2d-travel-tips
-title: "Tips for Traveling With Diabetes"
-source_org: CDC
-source_url: https://www.cdc.gov/diabetes/about/tips-for-traveling-with-diabetes.html
-doc_type: patient_guide
-topic:
-  - diabetes
-  - type_2_diabetes
-  - travel
-  - medication_management
-  - blood_glucose_monitoring
-  - foot_care
-audience: patient
-language: en
-jurisdiction: US
-last_verified: 2026-10-22
+doc_id: "cdc-t2d-travel-tips"
+source_name: "Tips for Traveling With Diabetes"
+source_org: "CDC"
+source_file: "cdc_diabetes.txt"
+source_path: "sources/travel/cdc_diabetes.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "US"
+language: "en"
+population: "people with diabetes"
+publication_year: null
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Tips for Traveling With Diabetes
-
-## Key points
+## Tips for Traveling With Diabetes: Key points
 
 Travel disrupts normal diabetes-management routines. Delayed meals, unfamiliar foods, changes in physical activity, and different time zones can affect blood glucose levels. Planning ahead can help people with diabetes continue managing their condition while traveling.
 
-## Before you go
-
-### Medical preparation
+## Before you go: Medical preparation
 
 - Keep routine medical appointments up to date and discuss travel plans with your healthcare professional.
 - Ask how medicines should be managed when crossing time zones or when meal schedules change.
 - Find out how to obtain medication refills if needed.
 
-### Packing medicines and supplies
+## Before you go: Packing medicines and supplies
 
 - Keep diabetes medicines, blood glucose monitoring equipment, and suitable snacks readily accessible.
 - When flying, keep essential diabetes supplies in your carry-on baggage rather than relying on checked luggage.
 - The CDC source advises packing twice as much medicine as expected to be needed, to allow for delays or unexpected circumstances.
 
-### Airport security and diabetes devices
+## Before you go: Airport security and diabetes devices
 
 **United States (CDC/TSA source).** According to the TSA, on flights departing from
 US airports, diabetes-related liquids (liquid medicines, fast-acting glucose sources,
@@ -66,16 +60,14 @@ journey, such as insulin, which may exceed 100 mL.
 > exception exists, that it may require documentation, and refer the user to the
 > airline, the airport, and ENAC. Do not give maximum permitted quantities.
 
-## While you are traveling
-
-### Plan food and drinks
+## While you are traveling: Plan food and drinks
 
 Consider food and drink options before setting off by car, airplane, or train.
 
 - When traveling by car, consider bringing a cooler with suitable foods and plenty of water.
 - When flying, consider packing convenient food options, such as fruit or nuts, to reduce reliance on less suitable convenience foods.
 
-### Examples of food options
+## While you are traveling: Examples of food options
 
 The CDC source suggests the following options at airports and roadside restaurants:
 
@@ -88,7 +80,7 @@ The CDC source suggests the following options at airports and roadside restauran
 
 These are examples of possible choices, not a mandatory meal plan. Individual needs and the availability of food will vary.
 
-### Store medicines and supplies appropriately
+## While you are traveling: Store medicines and supplies appropriately
 
 - Protect medicines and diabetes supplies from excessive heat and cold.
 - Do not leave insulin or other medicines in a hot car, in direct sunlight, or directly on ice.
@@ -98,14 +90,14 @@ These are examples of possible choices, not a mandatory meal plan. Individual ne
 
 Follow the storage instructions for each medicine and device. A cooler should not be assumed to maintain the required temperature unless it is suitable for that purpose.
 
-### Stay active during the journey
+## While you are traveling: Stay active during the journey
 
 - During car journeys, take breaks to stretch and walk when it is safe to do so.
 - On airplanes and trains, the CDC source suggests walking along the aisle every hour or two when feasible, to help reduce the risk of blood clots.
 
 Movement should be adapted to the travel environment and to the person's mobility and health.
 
-### Keep medicines on schedule
+## While you are traveling: Keep medicines on schedule
 
 Changes in routine can make it easier to forget medicines or lose track of time.
 
@@ -114,9 +106,7 @@ Changes in routine can make it easier to forget medicines or lose track of time.
 
 Do not independently change medication doses or timing when the correct adjustment is uncertain.
 
-## When you arrive
-
-### Monitor blood glucose
+## When you arrive: Monitor blood glucose
 
 - Check blood glucose regularly during the trip to identify high or low readings.
 - Pay attention to changes in food intake, physical activity, and daily routines.
@@ -124,19 +114,19 @@ Do not independently change medication doses or timing when the correct adjustme
 
 The CDC source advises people using insulin to adjust it as instructed by their healthcare professional. It does not provide a universal insulin-adjustment schedule.
 
-### Enjoy local food in moderation
+## When you arrive: Enjoy local food in moderation
 
 Travel offers opportunities to try local foods. The CDC source recommends enjoying them in moderation and being mindful of portion sizes.
 
 Buffets, including those on cruises, may make it easy to continue eating beyond hunger. Paying attention to hunger and portion sizes may help avoid eating more than needed.
 
-### Take precautions in hot weather
+## When you arrive: Take precautions in hot weather
 
 High temperatures, dehydration, and sunburn can affect blood glucose management.
 
 When traveling in warm climates, pay attention to the temperature and take appropriate precautions against heat and dehydration. Follow the person's established diabetes-care plan and seek medical advice if symptoms or blood glucose changes are difficult to manage.
 
-### Check your feet every day
+## When you arrive: Check your feet every day
 
 Walking more than usual or exploring unfamiliar places can cause blisters, cuts, or other foot injuries.
 

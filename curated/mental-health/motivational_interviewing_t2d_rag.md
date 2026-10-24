@@ -1,44 +1,21 @@
 ---
-authors:
-- Lizhen Wang
-- Jing Li
-- Minghui Zhang
-- Maggie Mee Kie Chan
-- Mu-Hsing Ho
-content_scope: Patient-relevant summary of evidence on
-  transtheoretical-model-based motivational interviewing interventions
-  for adults with type 2 diabetes.
-doi: 10.1111/wvn.70041
-language: en
-limitations:
-- Pooled effects describe groups in clinical trials and do not predict
-  an individual patient's response.
-- The review found substantial heterogeneity and concerns about risk of
-  bias.
-pmcid: PMC12104554
-pmid: 40415259
-population: Adults with type 2 diabetes
+doc_id: "wvn-motivational-interviewing-t2d"
+source_name: "Effectiveness of Transtheoretical Model-Based Motivational Interviewing on Glycemic Control Among Adults With Type 2 Diabetes: A Systematic Review and Meta-Analysis of Randomized Control Trials"
+source_org: "Worldviews on Evidence-Based Nursing"
+source_file: "WVN-22-0.pdf"
+source_path: "sources/mental-health/WVN-22-0.pdf"
+doc_type: "systematic_review"
+audience: "healthcare_professionals"
+jurisdiction: "INT"
+language: "en"
+population: "Adults with type 2 diabetes"
 publication_year: 2025
-source_organization: Worldviews on Evidence-Based Nursing
-source_title: "Effectiveness of Transtheoretical Model-Based
-  Motivational Interviewing on Glycemic Control Among Adults With Type 2
-  Diabetes: A Systematic Review and Meta-Analysis of Randomized Control
-  Trials"
-source_type: systematic_review_and_meta_analysis
-source_url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12104554/"
-title: Motivational Interviewing and Behaviour Change in Adults With
-  Type 2 Diabetes
-topics:
-- motivational interviewing
-- behaviour change
-- diabetes self-management
-- self-efficacy
-- glycemic control
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Motivational Interviewing and Behaviour Change in Type 2 Diabetes
-
-## Purpose and scope
+## Motivational Interviewing and Behaviour Change in Type 2 Diabetes: Purpose and scope
 
 Motivational interviewing (MI) is a collaborative communication approach
 that helps a person explore their own reasons for change. It can be

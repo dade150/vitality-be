@@ -1,28 +1,21 @@
 ---
-doc_id: niddk-t2d-medicines-treatments
-title: "Insulin, Medicines, and Other Treatments for Type 2 Diabetes"
+doc_id: "niddk-t2d-medicines-treatments"
+source_name: "Insulin, Medicines, and Other Treatments for Type 2 Diabetes"
 source_org: "National Institute of Diabetes and Digestive and Kidney Diseases (NIDDK), NIH"
-source_url: "https://www.niddk.nih.gov/health-information/diabetes/overview/insulin-medicines-treatments"
-doc_type: patient_guide
-audience: patient
-population: adults_with_type_2_diabetes
-topic:
-  - type_2_diabetes
-  - diabetes_medications
-  - insulin
-  - GLP-1_receptor_agonists
-  - medication_safety
-  - hypoglycemia
-  - medication_adherence
-language: en
-jurisdiction: US
-last_verified: null
+source_file: "insuline_treatments.txt"
+source_path: "sources/farmaci/insuline_treatments.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "US"
+language: "en"
+population: "adults_with_type_2_diabetes"
+publication_year: null
+last_verified: 2026-10-24
 can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Medicines and Other Treatments for Type 2 Diabetes
-
-## Overview
+## Medicines and Other Treatments for Type 2 Diabetes: Overview
 
 Type 2 diabetes is managed through an individualized plan that may include healthy eating, physical activity, weight management when appropriate, sleep, stress management, and medication.
 
@@ -41,7 +34,7 @@ A healthcare professional can help determine which treatment is appropriate. Pat
 
 Several types of medicines are available for type 2 diabetes. They lower blood glucose through different mechanisms, and more than one medicine may be needed.
 
-### Oral medicines
+## Medicines used to treat type 2 diabetes: Oral medicines
 
 Many medicines for type 2 diabetes are taken by mouth.
 
@@ -51,7 +44,7 @@ Other oral medicines work through different mechanisms. Combining medicines with
 
 The most appropriate medication depends on the individual's clinical situation and treatment goals. This guide does not provide a complete list of medication classes or recommendations for choosing between them.
 
-### Injectable medicines other than insulin
+## Medicines used to treat type 2 diabetes: Injectable medicines other than insulin
 
 Some injectable medicines used in type 2 diabetes help control the rise in blood glucose after meals.
 
@@ -59,7 +52,7 @@ Glucagon-like peptide-1 (GLP-1) receptor agonists are one such group. They can h
 
 GLP-1 receptor agonists are not substitutes for insulin when insulin is medically necessary. Whether one of these medicines is appropriate depends on the person's treatment needs and clinical circumstances.
 
-### Insulin treatment
+## Medicines used to treat type 2 diabetes: Insulin treatment
 
 Some people with type 2 diabetes need insulin, either as part of their ongoing treatment or during particular circumstances, such as hospitalization or pregnancy.
 
@@ -90,7 +83,7 @@ These timings are approximate and can vary by product and individual circumstanc
 
 Insulin can be administered using different devices. The appropriate method depends on the prescribed treatment, practical needs, access, and patient preferences.
 
-### Needle and syringe
+## Ways to administer insulin: Needle and syringe
 
 Insulin can be drawn from a vial into a syringe and injected under the skin.
 
@@ -98,7 +91,7 @@ Common injection sites include the abdomen, thigh, buttocks, and upper arm. Abso
 
 Patients should receive instruction on injection technique and appropriate site rotation from a healthcare professional.
 
-### Insulin pen
+## Ways to administer insulin: Insulin pen
 
 An insulin pen is a device used to administer insulin. Some pens are prefilled and disposable; others use replaceable insulin cartridges.
 
@@ -106,7 +99,7 @@ Pens may be easier for some people to handle than a vial and syringe. Certain mo
 
 Patients should learn how to use their specific pen and verify that the device and insulin product are compatible.
 
-### Insulin pump
+## Ways to administer insulin: Insulin pump
 
 An insulin pump delivers insulin through a small device worn on or attached to the body. Some pumps use tubing, while patch pumps attach directly to the skin.
 
@@ -114,11 +107,11 @@ Pumps can deliver insulin continuously and may allow additional doses at mealtim
 
 Pump therapy requires training, monitoring, and a plan for device problems or interruptions in insulin delivery.
 
-### Inhaled insulin
+## Ways to administer insulin: Inhaled insulin
 
 Some insulin products can be inhaled using a dedicated device. Inhaled insulin is an option for certain adults with type 1 or type 2 diabetes, but it is less commonly used than injectable insulin. Eligibility and safety considerations are product-specific and should be discussed with a healthcare professional.
 
-### Automated insulin delivery systems
+## Ways to administer insulin: Automated insulin delivery systems
 
 Automated insulin delivery systems combine a continuous glucose monitor, a control algorithm, and an insulin pump. The system uses glucose data to adjust insulin delivery automatically to varying degrees, depending on the device.
 

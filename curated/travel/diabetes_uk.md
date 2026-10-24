@@ -1,30 +1,21 @@
 ---
-doc_id: diabetes-uk-travelling-with-diabetes
-title: "Travelling with Diabetes"
-source_org: Diabetes UK
-source_url: https://www.diabetes.org.uk/living-with-diabetes/life-with-diabetes/travel
-doc_type: patient_guide
-topic:
-  - diabetes
-  - type_2_diabetes
-  - travel
-  - insulin
-  - medication_management
-  - insulin_pump
-  - continuous_glucose_monitoring
-  - time_zones
-  - hot_weather
-  - cold_weather
-  - travel_insurance
-audience: patient
-language: en
-jurisdiction: UK
-last_verified: 2026-10-22
+doc_id: "diabetes-uk-travelling-with-diabetes"
+source_name: "Travelling with Diabetes"
+source_org: "Diabetes UK"
+source_file: "diabetes_uk.txt"
+source_path: "sources/travel/diabetes_uk.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "UK"
+language: "en"
+population: "people with diabetes"
+publication_year: null
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Travelling with Diabetes
-
-## 1. Overview
+## Travelling with Diabetes: Overview
 
 Living with diabetes should not prevent a person from travelling at home or abroad. However, travel can disrupt normal routines and affect diabetes management because of changes in meal timing, physical activity, temperature, time zones, and access to medicines or healthcare.
 
@@ -32,9 +23,7 @@ Planning ahead can help reduce avoidable problems and make it easier to manage d
 
 The source recommends discussing travel arrangements with the diabetes healthcare team, carrying sufficient medicines and equipment, obtaining appropriate documentation, and checking the requirements of airlines and destination countries.
 
-## 2. Planning medication and supplies
-
-### Additional supplies
+## Planning medication and supplies: Additional supplies
 
 Diabetes UK recommends considering supplies of approximately **two to three times the amount of medication and equipment normally needed**. The purpose is to provide a reserve if the trip is extended or disrupted.
 
@@ -49,7 +38,7 @@ Before departure:
 
 The two-to-three-times quantity is the recommendation reported by this source. The amount required in practice should be planned with the healthcare team and should account for the length and nature of the trip.
 
-### Medical letter
+## Planning medication and supplies: Medical letter
 
 Some airlines or other travel operators may request a letter from the person's GP or diabetes healthcare team confirming the diagnosis and the need to carry diabetes medicines and equipment.
 
@@ -62,7 +51,7 @@ The letter may include:
 
 Check the airline's current requirements before departure. A letter may also be useful if medical assistance is needed during the trip.
 
-### Airline and destination requirements
+## Planning medication and supplies: Airline and destination requirements
 
 Before travel:
 
@@ -88,7 +77,7 @@ The source notes that access to publicly funded healthcare in some destinations 
 
 Diabetes medicines and essential equipment should remain accessible during travel. The source recommends carrying these items in hand luggage rather than checked baggage.
 
-### Hand-luggage checklist
+## Hand-luggage checklist
 
 | Item | Purpose |
 |---|---|
@@ -104,28 +93,26 @@ Diabetes medicines and essential equipment should remain accessible during trave
 
 The source suggests separating supplies between bags or, where appropriate, sharing some supplies with a travelling companion to reduce the risk of losing everything if one bag goes missing.
 
-### Carrying insulin on an aircraft
+## Carrying insulin on an aircraft
 
 The source advises carrying insulin in hand luggage because checked baggage may be exposed to unsuitable temperatures and may be lost or delayed.
 
 Insulin should be stored according to the product's instructions. Avoid excessive heat and freezing, and use an appropriate cooling solution if required.
 
-### Airport liquid restrictions
+## Airport liquid restrictions
 
 The source describes the usual UK airport rule limiting liquid containers in hand luggage to 100 mL, while noting that medically necessary liquids may require special arrangements.
 
 Because airport screening rules and exemptions can change, check the current requirements of the departure airport, transit airports, and airline before travelling. Carry medical documentation when appropriate.
 
-## 5. Flying with an insulin pump, CGM, or flash glucose monitor
-
-### Before departure
+## Flying with an insulin pump, CGM, or flash glucose monitor: Before departure
 
 - Check the device manufacturer's current guidance on air travel and security screening.
 - Contact the airline well in advance to determine whether notification or forms are required.
 - Carry medical documentation explaining the need for the device.
 - Discuss a backup plan with the diabetes healthcare team in case a pump or monitoring device fails or must temporarily be removed.
 
-### Using devices during a flight
+## Flying with an insulin pump, CGM, or flash glucose monitor: Using devices during a flight
 
 The source states that insulin pumps, CGMs, and flash glucose monitoring systems can generally be used during air travel, subject to device-specific instructions.
 
@@ -133,7 +120,7 @@ It also warns that changes in cabin pressure may affect insulin delivery from so
 
 Device-specific recommendations take precedence. Follow the manufacturer's instructions and the airline's current requirements.
 
-### Airport security screening
+## Flying with an insulin pump, CGM, or flash glucose monitor: Airport security screening
 
 The source distinguishes between different screening methods and warns that some medical devices may be unsuitable for exposure to particular scanners.
 
@@ -147,11 +134,11 @@ Do not assume that all devices have the same screening restrictions. Confirm the
 
 The source recommends carrying a medical device awareness card, where available, together with a medical letter. It states that travelers should be offered an alternative screening method when their device cannot undergo a particular screening procedure.
 
-### Medical device awareness card
+## Flying with an insulin pump, CGM, or flash glucose monitor:Medical device awareness card
 
 The source refers to a medical device awareness card from the UK Civil Aviation Authority (CAA). Availability and current guidance should be checked directly with the CAA.
 
-## 6. Managing insulin across time zones
+## Managing insulin across time zones
 
 Long-haul travel across time zones may require changes to insulin timing or doses.
 
@@ -171,13 +158,13 @@ Before departure:
 
 Do not calculate or change doses solely from the direction of travel without an individualized plan.
 
-### Diabetes tablets and time zones
+## Managing insulin across time zones: Diabetes tablets and time zones
 
 The source states that people taking diabetes tablets may not usually experience major difficulties with time-zone changes, but occasional adjustments may be needed when the travel day becomes longer or shorter.
 
 Any decision to add, delay, or omit a dose should be discussed with the healthcare team before departure. The source does not provide a universal adjustment schedule.
 
-### Insulin pumps, CGMs, and readers
+## Managing insulin across time zones: Insulin pumps, CGMs, and readers
 
 When crossing time zones:
 
@@ -188,9 +175,7 @@ When crossing time zones:
 
 Check the instructions for the specific pump, reader, sensor, and associated application.
 
-## 7. Storing insulin in hot and cold climates
-
-### Hot climates
+## Storing insulin in hot and cold climates: Hot climates
 
 High temperatures can damage insulin and reduce its effectiveness.
 
@@ -203,7 +188,7 @@ The source advises travelers to:
 
 The source describes heat-damaged insulin as potentially changing appearance, including clear insulin becoming cloudy or developing a brownish colour. Appearance alone cannot reliably establish whether insulin is safe or effective. If insulin may have been exposed to unsuitable temperatures, consult the product instructions or a pharmacist and replace it when advised.
 
-### Cold climates
+## Storing insulin in hot and cold climates: Cold climates
 
 Insulin that has frozen must not be used, according to the source.
 
@@ -215,7 +200,7 @@ For travel in very cold conditions:
 - Check the temperature limits specified for the blood glucose meter and other equipment.
 - Keep meters and supplies within their specified operating temperature range.
 
-### Summary of temperature precautions
+## Storing insulin in hot and cold climates: Summary of temperature precautions
 
 | Situation | Main precaution |
 |---|---|
@@ -239,9 +224,7 @@ The source recommends:
 
 Snacks and meal choices should be adapted to the person's treatment and clinical needs. The source does not establish a universal requirement for a bedtime snack or a specific carbohydrate amount.
 
-## 9. Managing diabetes in hot climates
-
-### Sun protection and foot care
+## Managing diabetes in hot climates: Sun protection and foot care
 
 The source advises protecting the skin and feet during travel in hot climates.
 
@@ -252,7 +235,7 @@ The source advises protecting the skin and feet during travel in hot climates.
 - Wear well-fitting footwear, including at the beach.
 - People with neuropathy or reduced foot sensation should take extra care because burns or injuries may not be noticed promptly.
 
-### Heat, activity, and blood glucose
+## Managing diabetes in hot climates: Heat, activity, and blood glucose
 
 Hot weather and changes in activity may affect diabetes management.
 
@@ -310,7 +293,3 @@ This document is a structured summary of Diabetes UK's patient guidance *Travell
 Some recommendations in the source are specific to the United Kingdom, including references to the UK Civil Aviation Authority, GP letters, and UK travel advice. Airport security rules, medication import restrictions, device compatibility, and insurance coverage vary by destination and may change over time.
 
 The document does not provide individualized medication instructions. Insulin dose changes, adjustments to tablet schedules, sick-day management, and device settings should be planned with the person's healthcare team.
-
-Source: Diabetes UK, *Travelling with diabetes*.
-
-Source URL: https://www.diabetes.org.uk/living-with-diabetes/life-with-diabetes/travel

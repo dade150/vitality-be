@@ -1,29 +1,21 @@
 ---
-doc_id: cdc-yellowbook-2026-chronic-illness-travel
-title: "Travelers with Chronic Illnesses: CDC Yellow Book 2026"
-source_org: CDC
-source_url: https://www.cdc.gov/yellow-book/hcp/travelers-with-additional-considerations/travelers-with-chronic-illnesses.html
-source_publication: "CDC Yellow Book: Health Information for International Travel, 2026 edition"
-source_authors:
-  - Fátima Coronado
-  - Noreen A. Hynes
-doc_type: clinical_travel_guidance
-topic:
-  - diabetes
-  - type_2_diabetes
-  - international_travel
-  - pretravel_consultation
-  - medication_management
-  - travel_insurance
-audience: clinician
-language: en
-jurisdiction: US
-last_verified: 2026-10-22
+doc_id: "cdc-yellowbook-2026-chronic-illness-travel"
+source_name: "Travelers with Chronic Illnesses: CDC Yellow Book 2026"
+source_org: "CDC"
+source_file: "cdc_travel_chronic_illnesses.txt"
+source_path: "sources/travel/cdc_travel_chronic_illnesses.txt"
+doc_type: "clinical_travel_guidance"
+audience: "healthcare_professionals"
+jurisdiction: "US"
+language: "en"
+population: "travelers with chronic illnesses"
+publication_year: 2026
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Travelers with Chronic Illnesses
-
-## Purpose and key message
+## Travelers with Chronic Illnesses: Purpose and key message
 
 This document summarizes relevant guidance from the CDC Yellow Book 2026 chapter *Travelers with Chronic Illnesses*, with a focus on travel preparation for people living with diabetes.
 
@@ -47,9 +39,7 @@ The consultation should consider:
 
 The itinerary may need to be adapted if the assessment identifies significant health or access-to-care concerns.
 
-## 2. Medication planning and medical supplies
-
-### Medication quantity and availability
+## Medication planning and medical supplies: Medication quantity and availability
 
 The CDC recommends ensuring that travelers have enough medication for the entire trip, plus extra in case of unexpected delays.
 
@@ -62,15 +52,13 @@ The CDC recommends ensuring that travelers have enough medication for the entire
 
 Any change to a medication or dosing schedule should be planned with the appropriate healthcare professional.
 
-### Medication restrictions in the destination country
+## Medication planning and medical supplies: Medication restrictions in the destination country
 
 Before international travel, check whether the destination country restricts the importation of any prescribed medicines. Requirements vary by country and may apply even when a medicine has been prescribed legally in the traveler's home country.
 
 The CDC source specifically recommends checking with the destination country's relevant embassy or consulate. Travelers should verify the current requirements for their particular medicines.
 
-## 3. Medical documentation and emergency planning
-
-### Medical letter
+## Medical documentation and emergency planning: Medical letter
 
 The CDC recommends obtaining a medical letter before travel. The letter should describe:
 
@@ -84,11 +72,11 @@ The source suggests obtaining this letter approximately **3–4 weeks before dep
 
 Travelers may also consider storing relevant medical records and medication information in a secure, accessible digital format.
 
-### Medical identification
+## Medical documentation and emergency planning: Medical identification
 
 Consider wearing a medical alert bracelet or carrying medical information on one's person, particularly when traveling alone or when urgent treatment may be needed.
 
-### Healthcare access and insurance
+## Medical documentation and emergency planning: Healthcare access and insurance
 
 Before departure:
 

@@ -1,29 +1,21 @@
 ---
-doc_id: nhs-rapid-acting-insulin-storage-travel
-title: Storing and Travelling with Rapid-Acting Insulin
-source_org: NHS
-source_title: Storing and travelling with rapid-acting insulin
-source_url: https://www.nhs.uk/medicines/insulin/rapid-acting-insulin/storing-and-travelling-with-rapid-acting-insulin/
-doc_type: patient_guide
-audience: patient
-population: adults_with_type_2_diabetes
-topic:
-  - rapid-acting insulin
-  - insulin storage
-  - insulin temperature
-  - insulin transport
-  - travel with diabetes
-  - insulin supplies
-  - air travel
-language: en
-jurisdiction: UK
-last_verified: null
+doc_id: "nhs-rapid-acting-insulin-storage-travel"
+source_name: "Storing and Travelling with Rapid-Acting Insulin"
+source_org: "NHS"
+source_file: "storing-and-travelling-with-rapid-acting-insulin.txt"
+source_path: "sources/farmaci/storing-and-travelling-with-rapid-acting-insulin.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "UK"
+language: "en"
+population: "adults_with_type_2_diabetes"
+publication_year: null
+last_verified: 2026-10-24
 can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Storing and Travelling with Rapid-Acting Insulin
-
-## 1. Scope
+## 1. Storing and Travelling with Rapid-Acting Insulin: Scope
 
 This guide summarizes general storage and travel advice from the NHS for rapid-acting insulin. It is relevant to people with type 2 diabetes who use rapid-acting insulin as part of their prescribed treatment.
 

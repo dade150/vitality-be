@@ -1,22 +1,19 @@
 ---
-doc_id: "kb-esenzione-013-diabete-mellito-t2d"
-title: "Esenzione 013 (diabete mellito): prestazioni specialistiche esenti"
-source_name: "Allegato 8 DPCM 2017 e Banca Dati Malattie Croniche Esenti (agg. 2026)"
+doc_id: "esenzione-013-allegato-8-banca-dati"
+source_name: "Allegato 8 DPCM 2017 e Banca Dati Malattie Croniche Esenti"
 source_org: "Ministero della Salute"
-doc_type: "normativa_sanitaria_integrata"
+source_file: "allegato_8.pdf"
+source_path: "sources/esenzione/allegato_8.pdf"
+doc_type: "normativa_sanitaria"
+audience: "general_public, healthcare_professionals"
 jurisdiction: "IT"
 language: "it"
-last_verified: "2026-10-19"
-applies_to: "persone con diabete di tipo 2 (il codice 013 vale per il diabete mellito in generale)"
-risk_level: "medium"
-topic_tags:
-  - "diabete_tipo_2"
-  - "esenzione_ticket"
-  - "prestazioni_specialistiche"
-  - "codice_013"
+population: "pazienti con diabete mellito"
+publication_year: 2017
+last_verified: 2026-10-24
+can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
-
-# Indice delle Fonti Documentali (Knowledge Base Diabete Tipo 2)
 
 ## 1. Allegato 8 del DPCM 12 gennaio 2017
 * **Titolo ufficiale**: Allegato 8 - Elenco malattie e condizioni croniche e invalidanti e Tabella di corrispondenza con Classificazione internazionale delle malattie ICD-9-CM e Pacchetti Prestazionali.
@@ -47,22 +44,20 @@ topic_tags:
 
 ---
 
-# Esenzione per Patologia Cronica: Diabete Mellito
-
-## Inquadramento della patologia
+## Esenzione per Patologia Cronica: Diabete Mellito: Inquadramento della patologia
 
 * Codice di esenzione: `013` - Patologia: `DIABETE MELLITO` - Codifica ICD-9-CM associata: `250` - Fonte: Allegato 8 DPCM 2017 e Banca Dati MinSal 2026.
 
-## Prestazioni specialistiche esenti (Pacchetto Prestazionale Integrato)
+## ## Esenzione per Patologia Cronica: Diabete Mellito: Prestazioni specialistiche esenti (Pacchetto Prestazionale Integrato)
 
 Le seguenti prestazioni sono erogabili in esenzione per i soggetti con codice 013. Le prestazioni sono raggruppate per area (laboratorio, oculistica, ecc.). Ogni gruppo
 inizia con una riga di contesto, così da restare comprensibile se recuperato da solo. 
 
-### Visite e Controlli Generali
+## ## Esenzione per Patologia Cronica: Diabete Mellito: Visite e Controlli Generali
 
 * Codice prestazione: Non specificato - Prestazione: VISITA DI CONTROLLO necessaria al monitoraggio della malattia, delle complicanze più frequenti ed alla prevenzione degli ulteriori aggravamenti - Limitazione/Condizioni: Identificate dal prescrittore - Fonte: Allegato 8 DPCM 2017 / Banca Dati 2026.
 
-### Esami di Laboratorio
+## ## Esenzione per Patologia Cronica: Diabete Mellito: Esami di Laboratorio
 
 In Italia, secondo l'Allegato 8 del DPCM 12 gennaio 2017 e la Banca Dati MinSal 2026,
 con l'esenzione per patologia 013 (diabete mellito) sono previste in esenzione
@@ -81,7 +76,7 @@ le seguenti prestazioni di laboratorio:
 * Codice prestazione: `90.44.3` - Prestazione: URINE ESAME COMPLETO - Condizioni: Incluso sedimento urinario - Fonte: Allegato 8 DPCM 2017 / Banca Dati 2026.
 * Codice prestazione: `90.94.2` - Prestazione: ESAME COLTURALE DELL' URINA [URINOCOLTURA] - Condizioni: Ricerca batteri e lieviti patogeni. Incluso conta batterica. Se positivo, incluso identificazione e antibiogramma - Fonte: Allegato 8 DPCM 2017 / Banca Dati 2026.
 
-## Esenzione 013 (diabete mellito) · TSH: esenzione limitata
+## Esenzione 013 (diabete mellito) - TSH: esenzione limitata
 
 In Italia, secondo la Banca Dati MinSal 2026, la prestazione `90.41.8` TSH test reflex
 è prevista in esenzione con il codice 013 solo per il diabete di tipo 1, la gravidanza,
@@ -95,7 +90,7 @@ definire range o cut-off più restrittivi.
 > Dire che secondo l'elenco nazionale non rientra, salvo i casi indicati, e rimandare
 > al medico o alla ASL.
 
-### Prelievi
+## Prelievi
 
 In Italia, secondo l'Allegato 8 del DPCM 12 gennaio 2017 e la Banca Dati MinSal 2026,
 con l'esenzione per patologia 013 (diabete mellito) sono previste in esenzione
@@ -106,7 +101,7 @@ le seguenti prestazioni:
 * Codice prestazione: `91.49.1` - Prestazione: PRELIEVO DI SANGUE CAPILLARE - Fonte: Allegato 8 DPCM 2017 / Banca Dati 2026.
 * Codice prestazione: `91.49.2` - Prestazione: PRELIEVO DI SANGUE VENOSO - Fonte: Allegato 8 DPCM 2017 / Banca Dati 2026.
 
-### Diagnostica Strumentale ed Ecografica
+## Diagnostica Strumentale ed Ecografica
 
 In Italia, secondo l'Allegato 8 del DPCM 12 gennaio 2017 e la Banca Dati MinSal 2026,
 con l'esenzione per patologia 013 (diabete mellito) sono previste in esenzione
@@ -118,7 +113,7 @@ le seguenti prestazioni:
 * Codice prestazione: `89.52` - Prestazione: ELETTROCARDIOGRAMMA - Fonte: Allegato 8 DPCM 2017 / Banca Dati 2026.
 * Codice prestazione: `99.99.2` - Prestazione: MONITORAGGIO DINAMICO DELLA GLICEMIA (HOLTER GLICEMICO) - Condizioni: Incluso addestramento del paziente all'uso dell'apparecchio - Fonte: Banca Dati 2026 (Codice aggiornato rispetto al DPCM 2017).
 
-### Elettromiografia e Valutazioni Neurologiche
+## Elettromiografia e Valutazioni Neurologiche
 
 In Italia, secondo l'Allegato 8 del DPCM 12 gennaio 2017 e la Banca Dati MinSal 2026,
 con l'esenzione per patologia 013 (diabete mellito) sono previste in esenzione
@@ -133,7 +128,7 @@ le seguenti prestazioni:
 * Codice prestazione: `93.09.1` - Prestazione: VELOCITA' DI CONDUZIONE NERVOSA MOTORIA - Condizioni: Per nervo principale. Fino a 6 segmenti - Fonte: Banca Dati 2026.
 * Codice prestazione: `93.09.2` - Prestazione: VELOCITA' DI CONDUZIONE NERVOSA SENSITIVA - Condizioni: Per nervo principale. Fino a 4 segmenti - Fonte: Banca Dati 2026.
 
-### Interventi Educazionali e Terapeutici
+## Interventi Educazionali e Terapeutici
 
 In Italia, secondo l'Allegato 8 del DPCM 12 gennaio 2017 e la Banca Dati MinSal 2026,
 con l'esenzione per patologia 013 (diabete mellito) sono previste in esenzione
@@ -143,7 +138,7 @@ le seguenti prestazioni:
 * Codice prestazione: `93.82.1` - Prestazione: TERAPIA EDUCAZIONALE DEL DIABETICO E DELL'OBESO - Condizioni: Per seduta individuale. Ciclo di 10 sedute - Fonte: Banca Dati 2026.
 * Codice prestazione: `93.82.2` - Prestazione: TERAPIA EDUCAZIONALE DEL DIABETICO E DELL'OBESO - Condizioni: Per seduta collettiva. Ciclo fino a 10 sedute - Fonte: Banca Dati 2026.
 
-### Oculistica
+## Oculistica
 
 In Italia, secondo l'Allegato 8 del DPCM 12 gennaio 2017 e la Banca Dati MinSal 2026,
 con l'esenzione per patologia 013 (diabete mellito) sono previste in esenzione
@@ -157,7 +152,7 @@ le seguenti prestazioni:
 * Codice prestazione: `95.12` - Prestazione: ANGIOGRAFIA CON FLUORESCEINA - Fonte: Banca Dati 2026.
 * Codice prestazione: `95.26` - Prestazione: TEST DI PROVOCAZIONE E CURVA TONOMETRICA PER GLAUCOMA - Fonte: Banca Dati 2026.
 
-### Piccola Chirurgia e Gestione Lesioni
+## Piccola Chirurgia e Gestione Lesioni
 
 In Italia, secondo l'Allegato 8 del DPCM 12 gennaio 2017 e la Banca Dati MinSal 2026,
 con l'esenzione per patologia 013 (diabete mellito) sono previste in esenzione

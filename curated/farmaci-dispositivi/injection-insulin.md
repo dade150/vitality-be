@@ -1,30 +1,21 @@
 ---
-doc_id: diabetes-uk-insulin-injection-technique
-title: Insulin Injection Technique and Site Care in Type 2 Diabetes
-source_org: Diabetes UK
-source_title: Injecting insulin
-source_url: https://www.diabetes.org.uk/about-diabetes/looking-after-diabetes/treatments/insulin/injecting
-doc_type: patient_guide
-audience: patient
-population: adults_with_type_2_diabetes
-topic:
-  - insulin injection
-  - insulin pens
-  - injection technique
-  - injection sites
-  - needle safety
-  - sharps disposal
-  - lipohypertrophy
-  - injection anxiety
-language: en
-jurisdiction: UK
-last_verified: null
+doc_id: "diabetes-uk-insulin-injection"
+source_name: "Insulin Injection Technique and Site Care in Type 2 Diabetes"
+source_org: "Diabetes UK"
+source_file: "injection_insulin.txt"
+source_path: "sources/farmaci/injection_insulin.txt"
+doc_type: "patient_guide"
+audience: "patients"
+jurisdiction: "UK"
+language: "en"
+population: "adults_with_type_2_diabetes"
+publication_year: null
+last_verified: 2026-10-24
 can_quote_numbers: true
+license_note: "Uso interno RAG."
 ---
 
-# Insulin Injection Technique and Site Care in Type 2 Diabetes
-
-## 1. Who Is This Guide For?
+## Insulin Injection Technique and Site Care in Type 2 Diabetes: Who Is This Guide For?
 
 Some people with type 2 diabetes use insulin to manage their blood glucose levels. Insulin is administered using an appropriate delivery device, such as an insulin pen and needle or, in some cases, an insulin pump.
 
