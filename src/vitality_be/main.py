@@ -10,6 +10,7 @@ from vitality_be.api.router import api_router, public_router
 from vitality_be.core.config import get_settings
 from vitality_be.core.logging import configure_logging
 from vitality_be.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
+from vitality_be.llm.embedder import get_embedder
 from vitality_be.llm.factory import get_llm
 from vitality_be.llm.prompts import get_chat_system_prompt
 
@@ -21,8 +22,11 @@ async def lifespan(app: FastAPI):
     configure_logging(s.is_prod)
     get_chat_system_prompt()
     llm = get_llm()
+    embedder = get_embedder()
     logger.info("Avvio env={} llm_provider={}", s.environment, s.llm_provider)
     yield
+    if hasattr(embedder, "aclose"):
+        await embedder.aclose()
     if hasattr(llm, "aclose"):
         await llm.aclose()
 

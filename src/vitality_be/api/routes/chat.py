@@ -13,7 +13,9 @@ from vitality_be.core.limits import (
     get_rate_limiter,
 )
 from vitality_be.core.security import CurrentUserDep
+from vitality_be.db.supabase1 import UserDbDep
 from vitality_be.llm.base import LLMError, LLMProvider, LLMUnavailable
+from vitality_be.llm.embedder import EmbedderProvider, get_embedder
 from vitality_be.llm.factory import get_llm
 from vitality_be.schemas.chat import ChatRequest, ChatResponse
 from vitality_be.services import chat as chat_service
@@ -36,7 +38,9 @@ def enforce_rate_limit(user: CurrentUserDep) -> None:
 async def chat(
     body: ChatRequest,
     user: CurrentUserDep,
+    user_db: UserDbDep,
     llm: Annotated[LLMProvider, Depends(get_llm)],
+    embedder: Annotated[EmbedderProvider, Depends(get_embedder)],
 ):
     started = time.monotonic()
     # mai il contenuto: solo id utente e numero di turni
@@ -45,7 +49,12 @@ async def chat(
         # Scadenza TOTALE (coda + provider) < 60 s del FE
         async with asyncio.timeout(get_settings().chat_request_timeout_s):
             async with get_gate().slot():
-                text = await chat_service.reply(llm, body.messages)
+                text = await chat_service.reply(
+                    llm,
+                    body.messages,
+                    user_db=user_db,
+                    embedder=embedder,
+                )
     except GateBusy:
         raise HTTPException(503, "Il servizio è molto richiesto. Riprova tra poco.",
                             headers={"Retry-After": "5"}) from None

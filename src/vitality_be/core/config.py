@@ -25,6 +25,18 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.3
     llm_thinking_level: Literal["minimal", "low", "medium", "high"] = "low"
 
+    # --- Embedding & Retrieval Ibrido (RAG) ---
+    embedding_gcp_project: str | None = None
+    embedding_location: str = "eu"
+    embedding_api_endpoint: str = "https://aiplatform.eu.rep.googleapis.com"
+    embedding_model: str = "gemini-embedding-2"
+    embedding_dim: int = 1536
+    embedding_timeout_s: float = 10.0
+    rag_semantic_top_k: int = 10
+    rag_fts_top_k: int = 10
+    rag_top_k: int = 8
+    rag_rrf_k: int = 60
+
     # --- Richiesta / abuso (minaccia: denial of wallet) ---
     chat_request_timeout_s: float = 50.0  # deve restare < 60 s (timeout del FE)
     rate_limit_requests: int = 20
@@ -61,6 +73,8 @@ class Settings(BaseSettings):
                 errors.append("GCP_LOCATION obbligatorio con LLM_PROVIDER=vertex.")
             if not self.llm_model:
                 errors.append("LLM_MODEL obbligatorio con LLM_PROVIDER=vertex.")
+            if not self.embedding_gcp_project and self.gcp_project:
+                self.embedding_gcp_project = self.gcp_project
         if self.environment == "prod":
             if self.llm_model and "preview" in self.llm_model.lower():
                 errors.append("In prod non sono ammessi modelli 'preview'.")
@@ -71,9 +85,24 @@ class Settings(BaseSettings):
             errors.append("CHAT_REQUEST_TIMEOUT_S deve essere > 0 e < 60 (timeout del FE).")
         if not 0 < self.llm_timeout_s < self.chat_request_timeout_s:
             errors.append("LLM_TIMEOUT_S deve essere > 0 e < CHAT_REQUEST_TIMEOUT_S.")
+        if "embedding_timeout_s" not in self.model_fields_set and self.embedding_timeout_s >= self.chat_request_timeout_s:
+            self.embedding_timeout_s = self.llm_timeout_s
+        if not 0 < self.embedding_timeout_s < self.chat_request_timeout_s:
+            errors.append("EMBEDDING_TIMEOUT_S deve essere > 0 e < CHAT_REQUEST_TIMEOUT_S.")
+        if not 1 <= self.embedding_dim <= 3072:
+            errors.append("EMBEDDING_DIM deve essere tra 1 e 3072.")
         if self.llm_max_output_tokens < 256:
             errors.append("LLM_MAX_OUTPUT_TOKENS troppo basso (< 256): le risposte verrebbero tagliate.")
-        for name in ("rate_limit_requests", "rate_limit_window_s", "llm_max_concurrency", "max_body_bytes"):
+        for name in (
+            "rate_limit_requests",
+            "rate_limit_window_s",
+            "llm_max_concurrency",
+            "max_body_bytes",
+            "rag_semantic_top_k",
+            "rag_fts_top_k",
+            "rag_top_k",
+            "rag_rrf_k",
+        ):
             if getattr(self, name) < 1:
                 errors.append(f"{name.upper()} deve essere >= 1.")
 
