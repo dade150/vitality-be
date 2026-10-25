@@ -12,10 +12,7 @@ population: "persone con diabete"
 publication_year: 2017
 last_verified: 2026-10-24
 can_quote_numbers: true
-license_note: "Uso interno RAG."---
-
-# Vademecum ANIAD - Diabete, attività fisica e sport
-
+license_note: "Uso interno RAG."
 ---
 
 ## Introduzione e raccomandazioni generali

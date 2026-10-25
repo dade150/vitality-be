@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 *.so
 
-# Environments
+# Environments and secrets
 .env
 .env.*
 !.env.example
@@ -12,15 +12,14 @@ __pycache__/
 venv/
 env/
 
-# GCP credentials (mai nel repo)
+# GCP credentials
 service-account*.json
 gcp-key*.json
 
-# Tests
+# Tests and coverage
 .pytest_cache/
-
-# uv specific
-uv.lock
+.coverage
+htmlcov/
 
 # IDEs
 .vscode/
@@ -28,9 +27,22 @@ uv.lock
 
 # OS specific
 .DS_Store
+Thumbs.db
 
-# Logs and databases
+# Logs and local databases
 *.log
 *.sqlite3
 
+# Generated pipeline artifacts
+output/
+
+# Original sources: review before committing
 sources/
+
+# Extracted intermediates: uncomment if reproducible
+# extracted/
+
+# Python package build artifacts
+dist/
+build/
+*.egg-info/
