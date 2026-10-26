@@ -1,3 +1,5 @@
+import asyncio
+
 from loguru import logger
 from supabase import Client
 
@@ -5,7 +7,15 @@ from vitality_be.llm.base import ChatMessage, LLMBlocked, LLMProvider
 from vitality_be.llm.embedder import EmbedderProvider
 from vitality_be.llm.prompts import get_chat_system_prompt
 from vitality_be.schemas.chat import ChatMessageIn
-from vitality_be.services.retriever import attach_context_to_message, retrieve_chunks
+from vitality_be.services.patient_context import (
+    PatientContextResult,
+    PatientMaskingMap,
+    build_dual_rag_message,
+    fetch_patient_context,
+    rehydrate_assistant_reply,
+    scrub_free_text,
+)
+from vitality_be.services.retriever import RetrievedChunk, retrieve_chunks
 
 # Risposta fissa e sicura quando i filtri del provider bloccano (HTTP 200, non un errore).
 BLOCKED_REPLY = (
@@ -30,27 +40,55 @@ async def reply(
     embedder: EmbedderProvider | None = None,
 ) -> str:
     history = [ChatMessage(m.role, m.content) for m in messages]
+    masking_map = PatientMaskingMap()
 
-    # --- PIPELINE CONVERSAZIONALE ---
+    # --- PIPELINE CONVERSAZIONALE (DUAL-RAG) ---
     # 1. analisi della richiesta (intento, emergenza, fuori tema) [futuro]
     # 2. guardrail in ingresso [futuro]
-    # 3. recupero del contesto (RAG ibrido: Top 10 semantici + Top 10 FTS -> Top 8 RRF),
-    #    passato come dati nell'ultimo turno utente, MAI nel system prompt.
-    if user_db is not None and embedder is not None:
+    # 3. recupero parallelo del contesto:
+    #    - RAG Statico Ibrido (Top 10 semantici + Top 10 FTS -> Top 8 RRF -> <contesto_clinico>)
+    #    - RAG Dinamico Paziente (profilo, diario SMBG, esami, terapie, pasti, attività -> <contesto_paziente>)
+    #    Passati come dati nell'ultimo turno utente, MAI nel system prompt.
+    if user_db is not None:
         last_user_query = history[-1].content
-        chunks = await retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder)
-        if chunks:
+        if embedder is not None:
+            chunks, patient_ctx = await asyncio.gather(
+                retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder),
+                fetch_patient_context(user_db),
+            )
+        else:
+            chunks: list[RetrievedChunk] = []
+            patient_ctx: PatientContextResult = await fetch_patient_context(user_db)
+
+        masking_map = patient_ctx.masking_map
+
+        # De-identificazione del testo utente prima dell'invio a Vertex AI
+        history = [
+            ChatMessage(
+                role=m.role,
+                content=scrub_free_text(m.content, masking_map) if m.role == "user" else m.content,
+            )
+            for m in history
+        ]
+        scrubbed_last_query = history[-1].content
+
+        if chunks or patient_ctx.context_xml:
             history[-1] = ChatMessage(
                 role="user",
-                content=attach_context_to_message(last_user_query, chunks),
+                content=build_dual_rag_message(
+                    scrubbed_last_query,
+                    patient_context_xml=patient_ctx.context_xml,
+                    clinical_chunks=chunks,
+                ),
             )
 
     # 4. generazione
-    # 5. guardrail in uscita [futuro]
-    # Nessun identificativo del paziente (nome, email...) va mai incluso nella richiesta.
+    # 5. re-idratazione token reversibili ({{NOME}}, {{MEDICO}}) e guardrail in uscita [futuro]
+    # Nessun identificativo diretto del paziente (nome reale, cognome, email...) va mai al provider LLM.
 
     try:
-        return await llm.chat(history, system=get_chat_system_prompt())
+        raw_reply = await llm.chat(history, system=get_chat_system_prompt())
+        return rehydrate_assistant_reply(raw_reply, masking_map)
     except LLMBlocked as exc:
         logger.warning("Risposta bloccata dai filtri code={}", exc.code)
         return BLOCKED_REPLY
