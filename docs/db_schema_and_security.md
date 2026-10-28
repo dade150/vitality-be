@@ -12,7 +12,7 @@ Questo documento fotografa lo schema del database PostgreSQL (`public`) su Supab
 | :--- | :--- | :--- |
 | `activity_enum` | `CAMMINATA`, `CORSA`, `BICICLETTA`, `PALESTRA`, `NUOTO`, `ALTRO` | Usato in `physical_activities.activity_type` |
 | `intensity_enum` | `LEGGERA`, `MODERATA`, `INTENSA` | Default `'MODERATA'` in `physical_activities.intensity` |
-| `meal_enum` | `COLAZIONE`, `PRANZO`, `CENA`, `SPUNTINO` | Usato in `meals.meal_type` |
+| `meal_enum` | `COLAZIONE`, `SPUNTINO_MATTINA`, `PRANZO`, `SPUNTINO_POMERIGGIO`, `CENA`, `FUORI_PASTO`, `SPUNTINO` | Usato in `meals.meal_type` |
 | `metric_enum` | `GLICEMIA`, `PRESSIONE`, `HbA1c`, `eGFR`, `UACR`, `Colesterolo Totale`, `HDL`, `LDL`, `Trigliceridi`, `HBA1C`, `EGFR`, `COLESTEROLO_TOTALE`, `TRIGLICERIDI` | **Attenzione:** contiene varianti miste e maiuscole. Il back-end Python normalizza sempre in uppercase con underscore. |
 | `report_enum` | `ANALISI_SANGUE`, `VISITA_DIABETOLOGICA`, `VISITA_CARDIOLOGICA`, `RETINOPATIA`, `NEFROPATIA`, `ESAME_PODOLOGICO`, `SALUTE_ORALE`, `DISFUNZIONE_ERETTILE`, `ALTRO` | Usato in `patient_reports.report_type` |
 | `sesso_biologico` | `maschio`, `femmina`, `altro` | Usato in `profile.sesso` |

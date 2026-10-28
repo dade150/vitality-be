@@ -42,7 +42,7 @@ TOKEN_PATIENT_NAME = "{{NOME}}"
 TOKEN_DOCTOR_NAME = "{{MEDICO}}"
 RPC_PATIENT_CONTEXT_BUNDLE = "get_patient_context_bundle"
 
-# Regex difensive per rimuovere PII accidentali nei testi liberi
+# Regex difensive per rimuovere PII accidentali nei testi liberi (input utente e referti)
 _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 _CF_RE = re.compile(
     r"\b[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPR-T][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]\b",
@@ -50,6 +50,17 @@ _CF_RE = re.compile(
 )
 _PHONE_RE = re.compile(
     r"(?:(?:\+|00)39[\s.-]?)?(?:3\d{2}|0\d{1,3})[\s.-]?\d{3}[\s.-]?\d{3,4}\b"
+)
+_IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b")
+_HEALTH_CARD_RE = re.compile(r"\b(?:8038000\d{13}|\d{16,20})\b")
+_ADDRESS_RE = re.compile(
+    r"\b(?:via|viale|piazza|corso|largo|vicolo)\s+[A-ZÀ-Úa-zà-ú']+(?:\s+[A-ZÀ-Úa-zà-ú']+){0,3}"
+    r"\s*(?:,\s*|\s+n\.?\s*|\s+civico\s+)\d{1,4}[A-Za-z]?\b",
+    re.IGNORECASE,
+)
+_DOCTOR_MENTION_RE = re.compile(
+    r"\b(?i:dott\.?(?:ssa|ore|oressa)?|dr\.?(?:ssa)?|prof\.?(?:ssa|essore|essoressa)?)"
+    r"\s+[A-ZÀ-Ú][a-zà-ú']+(?:\s+[A-ZÀ-Ú][a-zà-ú']+)?\b"
 )
 
 # Normalizzazione dei tipi di esame in `diabetes_data.metric_type` (gestisce i duplicati dell'enum)
@@ -60,6 +71,7 @@ _LAB_METRIC_LABELS: dict[str, tuple[str, str]] = {
     "COLESTEROLO_TOTALE": ("Colesterolo Totale", "mg/dL"),
     "HDL": ("Colesterolo HDL", "mg/dL"),
     "LDL": ("Colesterolo LDL", "mg/dL"),
+    "Trigliceridi": ("Trigliceridi", "mg/dL"),
     "TRIGLICERIDI": ("Trigliceridi", "mg/dL"),
 }
 
@@ -89,6 +101,7 @@ class PatientContextResult:
     context_xml: str
     masking_map: PatientMaskingMap
     sections_count: int = 0
+    active_therapies: tuple[dict[str, Any], ...] = ()
 
 
 def normalize_metric_type(raw_metric: str | None) -> str:
@@ -194,13 +207,17 @@ def _extract_first_float(raw_value: Any) -> float | None:
 
 
 def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = None) -> str:
-    """Rimuove email, numeri di telefono, codici fiscali e il nome/cognome reale dal testo libero."""
+    """Rimuove email, numeri di telefono, codici fiscali, IBAN, tessere sanitarie, indirizzi
+    e il nome/cognome/medico reale dal testo libero prima di qualsiasi invio a Vertex AI."""
     if not text:
         return ""
     cleaned = str(text)
     cleaned = _EMAIL_RE.sub("[EMAIL_RIMOSSA]", cleaned)
     cleaned = _CF_RE.sub("[CF_RIMOSSO]", cleaned)
+    cleaned = _IBAN_RE.sub("[IBAN_RIMOSSO]", cleaned)
+    cleaned = _HEALTH_CARD_RE.sub("[TESSERA_SANITARIA_RIMOSSA]", cleaned)
     cleaned = _PHONE_RE.sub("[TELEFONO_RIMOSSO]", cleaned)
+    cleaned = _ADDRESS_RE.sub("[INDIRIZZO_RIMOSSO]", cleaned)
 
     if masking_map is not None:
         # Se il cognome compare nel testo, lo oscuriamo prima del nome
@@ -218,12 +235,69 @@ def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = No
             fn_pattern = re.compile(rf"\b{fn_escaped}\b", re.IGNORECASE)
             cleaned = fn_pattern.sub(TOKEN_PATIENT_NAME, cleaned)
 
+        # Sostituisce tutti i medici già mappati in doctor_tokens
+        if masking_map.doctor_tokens:
+            for token, doc_name in sorted(
+                masking_map.doctor_tokens.items(),
+                key=lambda kv: len(kv[1] or ""),
+                reverse=True,
+            ):
+                if doc_name and len(doc_name.strip()) >= 3:
+                    doc_escaped = re.escape(doc_name.strip())
+                    cleaned = re.sub(doc_escaped, token, cleaned, flags=re.IGNORECASE)
+
         if masking_map.primary_doctor and len(masking_map.primary_doctor.strip()) >= 3:
             doc_escaped = re.escape(masking_map.primary_doctor.strip())
             doc_pattern = re.compile(rf"\b{doc_escaped}\b", re.IGNORECASE)
             cleaned = doc_pattern.sub(TOKEN_DOCTOR_NAME, cleaned)
 
+    # Qualsiasi altro nome di medico residuo ("Dott. Cognome") non ancora tokenizzato viene oscurato
+    cleaned = _DOCTOR_MENTION_RE.sub(TOKEN_DOCTOR_NAME, cleaned)
+
     return cleaned.strip()
+
+
+def mask_user_text_with_dynamic_tokens(
+    text: str | None,
+    masking_map: PatientMaskingMap | None = None,
+) -> tuple[str, PatientMaskingMap]:
+    """Maschera i dati sensibili nel testo dell'utente (o di un referto) e registra dinamicamente
+    eventuali nuovi nomi di medici menzionati (es. 'Dott. Marco Verdi') in `PatientMaskingMap`,
+    così non lasciano mai il server verso Vertex AI ma vengono re-idratati per il Front-End."""
+    current_map = masking_map or PatientMaskingMap()
+    if not text:
+        return "", current_map
+
+    doctor_tokens = dict(current_map.doctor_tokens)
+    primary_doctor = current_map.primary_doctor
+    if primary_doctor and TOKEN_DOCTOR_NAME not in doctor_tokens:
+        doctor_tokens[TOKEN_DOCTOR_NAME] = primary_doctor
+
+    existing_by_norm = {v.strip().lower(): k for k, v in doctor_tokens.items() if v}
+
+    def _replace_doc(match: re.Match[str]) -> str:
+        nonlocal primary_doctor
+        raw_doc = match.group(0).strip()
+        norm_doc = raw_doc.lower()
+        if norm_doc in existing_by_norm:
+            return existing_by_norm[norm_doc]
+        if primary_doctor is None:
+            primary_doctor = raw_doc
+            token = TOKEN_DOCTOR_NAME
+        else:
+            token = f"{{{{MEDICO_{len(existing_by_norm) + 1}}}}}"
+        existing_by_norm[norm_doc] = token
+        doctor_tokens[token] = raw_doc
+        return token
+
+    with_doc_tokens = _DOCTOR_MENTION_RE.sub(_replace_doc, str(text))
+    updated_map = PatientMaskingMap(
+        first_name=current_map.first_name,
+        last_name=current_map.last_name,
+        primary_doctor=primary_doctor,
+        doctor_tokens=doctor_tokens,
+    )
+    return scrub_free_text(with_doc_tokens, updated_map), updated_map
 
 
 def rehydrate_assistant_reply(reply_text: str, masking_map: PatientMaskingMap | None) -> str:
@@ -780,8 +854,24 @@ async def fetch_patient_context(
     elapsed_ms = int((time.monotonic() - started) * 1000)
     logger.info("patient_context ok sections={} ms={}", len(sections), elapsed_ms)
 
+    active_therapies_clean = tuple(
+        {
+            "id": t.get("id"),
+            "therapy_type": str(t.get("therapy_type") or "ALTRO").strip().upper(),
+            "drug_name": scrub_free_text(t.get("drug_name"), masking_map),
+            "dosage": scrub_free_text(t.get("dosage"), masking_map),
+        }
+        for t in therapies_rows
+        if t.get("drug_name")
+    )
+
     if not sections:
-        return PatientContextResult(context_xml="", masking_map=masking_map, sections_count=0)
+        return PatientContextResult(
+            context_xml="",
+            masking_map=masking_map,
+            sections_count=0,
+            active_therapies=active_therapies_clean,
+        )
 
     joined = "\n\n".join(sections)
     context_xml = f"<contesto_paziente>\n{joined}\n</contesto_paziente>"
@@ -789,6 +879,7 @@ async def fetch_patient_context(
         context_xml=context_xml,
         masking_map=masking_map,
         sections_count=len(sections),
+        active_therapies=active_therapies_clean,
     )
 
 

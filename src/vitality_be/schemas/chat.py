@@ -53,5 +53,9 @@ class ChatRequest(BaseModel):
         return self
 
 
+from vitality_be.schemas.extraction import ProposedEntry
+
+
 class ChatResponse(BaseModel):
     reply: str
+    proposed_entries: list[ProposedEntry] = Field(default_factory=list)

@@ -141,6 +141,77 @@ class VertexProvider:
         self._log_usage(response, time.monotonic() - started, attempt)
         return text
 
+    async def generate_structured(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        response_schema: type,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ):
+        """Esegue una chiamata Structured Output nativa a Vertex AI (JSON validato con Pydantic).
+
+        Supporta anche l'invio multimodale (`media_bytes` + `media_mime_type`, es. `image/jpeg`,
+        `image/png`, `application/pdf`) per l'estrazione diretta dei parametri clinici da foto
+        o PDF di referti ematochimici.
+        """
+        contents: list[types.Content] = []
+        for idx, m in enumerate(messages):
+            parts = [types.Part(text=m.content)]
+            if idx == len(messages) - 1 and media_bytes and media_mime_type:
+                parts.append(types.Part.from_bytes(data=media_bytes, mime_type=media_mime_type))
+            contents.append(
+                types.Content(
+                    role="model" if m.role == "assistant" else "user",
+                    parts=parts,
+                )
+            )
+
+        structured_cfg = dict(self._config_base)
+        structured_cfg["temperature"] = 0.0
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            response_schema=response_schema,
+            **structured_cfg,
+        )
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._timeout_s
+        started = time.monotonic()
+        attempt = 0
+        while True:
+            attempt += 1
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise LLMUnavailable("Timeout del provider LLM", code="timeout") from None
+            try:
+                async with asyncio.timeout(remaining):
+                    response = await self._client.aio.models.generate_content(
+                        model=self.model, contents=contents, config=config
+                    )
+                break
+            except TimeoutError:
+                raise LLMUnavailable("Timeout del provider LLM", code="timeout") from None
+            except errors.APIError as exc:
+                code = getattr(exc, "code", None)
+                if attempt == 1 and code in _RETRYABLE_CODES:
+                    pause = random.uniform(*self._backoff)
+                    if deadline - loop.time() > pause + 2:
+                        logger.warning("Vertex structured retry code={}", code)
+                        await asyncio.sleep(pause)
+                        continue
+                raise self._map_api_error(code) from None
+            except GoogleAuthError:
+                raise LLMUnavailable("Credenziali Google non disponibili", code="credentials") from None
+            except httpx.TransportError:
+                raise LLMUnavailable("Errore di rete verso il provider", code="network") from None
+
+        raw_json = self._extract_text(response)
+        self._log_usage(response, time.monotonic() - started, attempt)
+        return response_schema.model_validate_json(raw_json)
+
     @staticmethod
     def _map_api_error(code: int | None) -> LLMError:
         # 429/5xx/408 = transitori -> 503. Il resto (400/401/403/404...) è un problema

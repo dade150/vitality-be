@@ -49,7 +49,7 @@ async def chat(
         # Scadenza TOTALE (coda + provider) < 60 s del FE
         async with asyncio.timeout(get_settings().chat_request_timeout_s):
             async with get_gate().slot():
-                text = await chat_service.reply(
+                text, proposals = await chat_service.reply_with_proposals(
                     llm,
                     body.messages,
                     user_db=user_db,
@@ -69,5 +69,10 @@ async def chat(
         logger.error("chat user={} llm errore exc={} code={}", user.id, type(exc).__name__, exc.code)
         raise HTTPException(502, "Il servizio di chat non è al momento disponibile.") from None
 
-    logger.info("chat user={} ok ms={}", user.id, int((time.monotonic() - started) * 1000))
-    return ChatResponse(reply=text)
+    logger.info(
+        "chat user={} ok proposals={} ms={}",
+        user.id,
+        len(proposals),
+        int((time.monotonic() - started) * 1000),
+    )
+    return ChatResponse(reply=text, proposed_entries=proposals)
