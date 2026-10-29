@@ -29,5 +29,27 @@ class ChatMessage:
     content: str
 
 
+@dataclass(frozen=True)
+class LLMChatResult:
+    text: str
+    tokens_used: int | None = None
+
+
 class LLMProvider(Protocol):
-    async def chat(self, messages: list[ChatMessage], *, system: str | None = None) -> str: ...
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ) -> str: ...
+
+    async def chat_with_usage(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ) -> LLMChatResult: ...

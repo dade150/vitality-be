@@ -55,7 +55,7 @@ _IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b")
 _HEALTH_CARD_RE = re.compile(r"\b(?:8038000\d{13}|\d{16,20})\b")
 _ADDRESS_RE = re.compile(
     r"\b(?:via|viale|piazza|corso|largo|vicolo)\s+[A-ZÀ-Úa-zà-ú']+(?:\s+[A-ZÀ-Úa-zà-ú']+){0,3}"
-    r"\s*(?:,\s*|\s+n\.?\s*|\s+civico\s+)\d{1,4}[A-Za-z]?\b",
+    r"(?:\s*,\s*|\s+(?:n\.?|civico\s+)?)\d{1,4}[A-Za-z]?\b",
     re.IGNORECASE,
 )
 _DOCTOR_MENTION_RE = re.compile(
@@ -254,6 +254,27 @@ def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = No
     # Qualsiasi altro nome di medico residuo ("Dott. Cognome") non ancora tokenizzato viene oscurato
     cleaned = _DOCTOR_MENTION_RE.sub(TOKEN_DOCTOR_NAME, cleaned)
 
+    return cleaned.strip()
+
+
+def scrub_for_db_storage(text: str | None) -> str:
+    """Scrubbing selettivo dei dati sensibili critici per il salvataggio su `public.chat_message`.
+
+    A differenza di `scrub_free_text` (che de-identifica anche i nomi propri per Vertex AI),
+    questa funzione:
+    1. Mantiene il testo naturale leggibile dall'utente (incluso il proprio nome e il nome del medico).
+    2. Rimuove e sostituisce SEMPRE identificativi critici scritti per errore (Codice Fiscale,
+       IBAN, Tessera Sanitaria, Email, Numero di Telefono, Indirizzo di casa).
+    """
+    if not text:
+        return ""
+    cleaned = str(text)
+    cleaned = _EMAIL_RE.sub("[EMAIL_RIMOSSA]", cleaned)
+    cleaned = _CF_RE.sub("[CF_RIMOSSO]", cleaned)
+    cleaned = _IBAN_RE.sub("[IBAN_RIMOSSO]", cleaned)
+    cleaned = _HEALTH_CARD_RE.sub("[TESSERA_SANITARIA_RIMOSSA]", cleaned)
+    cleaned = _PHONE_RE.sub("[TELEFONO_RIMOSSO]", cleaned)
+    cleaned = _ADDRESS_RE.sub("[INDIRIZZO_RIMOSSO]", cleaned)
     return cleaned.strip()
 
 

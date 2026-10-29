@@ -39,7 +39,11 @@ def create_app() -> FastAPI:
 
     # Nessun CORS: l'app è mobile. Se servirà, allowlist esplicita da config.
     # Ordine: l'ultimo aggiunto è il più esterno.
-    app.add_middleware(BodySizeLimitMiddleware, max_bytes=s.max_body_bytes)
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=s.max_body_bytes,
+        chat_max_bytes=s.max_chat_body_bytes,
+    )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=s.allowed_hosts)
     app.add_middleware(RequestContextMiddleware)
 

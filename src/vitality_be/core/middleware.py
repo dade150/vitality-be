@@ -41,17 +41,26 @@ class BodySizeLimitMiddleware:
     """Minaccia: body enormi (memoria/CPU). Controlla Content-Length E conta i byte del flusso
     (chunked o Content-Length falso). Oltre il limite -> 413 {"detail": ...}."""
 
-    def __init__(self, app: ASGIApp, max_bytes: int):
+    def __init__(self, app: ASGIApp, max_bytes: int, chat_max_bytes: int | None = None):
         self.app, self.max_bytes = app, max_bytes
+        self.chat_max_bytes = chat_max_bytes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        limit = (
+            self.chat_max_bytes
+            if (self.chat_max_bytes is not None and method == "POST" and path == "/api/chat")
+            else self.max_bytes
+        )
+
         for name, value in scope["headers"]:
             if name == b"content-length":
                 try:
-                    too_big = int(value) > self.max_bytes
+                    too_big = int(value) > limit
                 except ValueError:
                     too_big = True
                 if too_big:
@@ -64,7 +73,7 @@ class BodySizeLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_bytes:
+                if received > limit:
                     # HTTPException: FastAPI la lascia passare e diventa un 413 pulito
                     raise HTTPException(413, "Richiesta troppo grande.")
             return message

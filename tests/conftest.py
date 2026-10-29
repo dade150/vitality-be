@@ -36,11 +36,47 @@ class FakeProvider:
         self.reply, self.exc = reply, exc
         self.calls: list[tuple[list[ChatMessage], str | None]] = []
 
-    async def chat(self, messages, *, system=None):
+    async def chat(self, messages, *, system=None, **kwargs):
         self.calls.append((messages, system))
         if self.exc:
             raise self.exc
         return self.reply
+
+    async def chat_with_usage(self, messages, *, system=None, **kwargs):
+        text = await self.chat(messages, system=system, **kwargs)
+        from vitality_be.llm.base import LLMChatResult
+        return LLMChatResult(text=text, tokens_used=10)
+
+
+class FakeEmbedder:
+    async def embed_query(self, _query: str):
+        return [0.0] * 1536
+
+
+class FakeUserDb:
+    def table(self, _name: str):
+        class Q:
+            def select(self, *_a, **_k): return self
+            def eq(self, *_a, **_k): return self
+            def order(self, *_a, **_k): return self
+            def limit(self, *_a, **_k): return self
+            def range(self, *_a, **_k): return self
+            def insert(self, *_a, **_k): return self
+            def update(self, *_a, **_k): return self
+            def delete(self, *_a, **_k): return self
+            def execute(self):
+                class R:
+                    data = []
+                return R()
+        return Q()
+
+    def rpc(self, _fn: str, _p: dict = None):
+        class Q:
+            def execute(self):
+                class R:
+                    data = []
+                return R()
+        return Q()
 
 
 def _clear_caches():
@@ -57,6 +93,7 @@ def make_client(monkeypatch):
     clients = []
 
     def _make(provider=None, **env):
+        monkeypatch.setenv("ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
         for k, v in env.items():
             monkeypatch.setenv(k.upper(), str(v))
         _clear_caches()
@@ -65,6 +102,10 @@ def make_client(monkeypatch):
 
         app = create_app()
         app.dependency_overrides[get_llm] = lambda: provider or FakeProvider()
+        from vitality_be.db.supabase1 import get_user_db
+        from vitality_be.llm.embedder import get_embedder
+        app.dependency_overrides.setdefault(get_user_db, lambda: FakeUserDb())
+        app.dependency_overrides.setdefault(get_embedder, lambda: FakeEmbedder())
         client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
             base_url="http://testserver",
