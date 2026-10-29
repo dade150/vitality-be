@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     llm_max_concurrency: int = 8
     llm_queue_timeout_s: float = 5.0
     max_body_bytes: int = 64 * 1024
+    max_chat_body_bytes: int = 7 * 1024 * 1024  # ~7 MB lordi per POST /api/chat con allegato multimodale
+    max_attachment_bytes: int = 5 * 1024 * 1024  # max 5 MB netti per singola immagine o PDF
+    chat_history_window: int = 20  # turni recenti caricati da DB per Gemini (anti denial-of-wallet)
 
     # --- Superficie HTTP ---
     allowed_hosts: Annotated[list[str], NoDecode] = ["localhost", "127.0.0.1", "testserver"]
@@ -81,6 +84,9 @@ class Settings(BaseSettings):
             if "allowed_hosts" not in self.model_fields_set or not self.allowed_hosts or "*" in self.allowed_hosts:
                 errors.append("In prod ALLOWED_HOSTS va impostato esplicitamente (no default, no '*').")
 
+        if "max_chat_body_bytes" not in self.model_fields_set and "max_body_bytes" in self.model_fields_set:
+            self.max_chat_body_bytes = self.max_body_bytes
+
         if not 0 < self.chat_request_timeout_s < 60:
             errors.append("CHAT_REQUEST_TIMEOUT_S deve essere > 0 e < 60 (timeout del FE).")
         if not 0 < self.llm_timeout_s < self.chat_request_timeout_s:
@@ -98,6 +104,9 @@ class Settings(BaseSettings):
             "rate_limit_window_s",
             "llm_max_concurrency",
             "max_body_bytes",
+            "max_chat_body_bytes",
+            "max_attachment_bytes",
+            "chat_history_window",
             "rag_semantic_top_k",
             "rag_fts_top_k",
             "rag_top_k",

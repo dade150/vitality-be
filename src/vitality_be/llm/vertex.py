@@ -1,7 +1,3 @@
-from google import genai
-
-# Inizializzazione corretta per Vertex AI con ADC
-client = genai.Client(vertexai=True, location="europe-west1")
 # llm/vertex.py
 """Provider Vertex AI (Gemini) con SDK `google-genai`.
 
@@ -27,7 +23,7 @@ from google.auth.exceptions import GoogleAuthError
 from google.genai import errors, types
 from loguru import logger
 
-from vitality_be.llm.base import ChatMessage, LLMBlocked, LLMError, LLMUnavailable
+from vitality_be.llm.base import ChatMessage, LLMBlocked, LLMChatResult, LLMError, LLMUnavailable
 
 # Safety settings ESPLICITE (non ci affidiamo ai default, che cambiano tra modelli).
 # DANGEROUS_CONTENT è meno severo (solo HIGH): con soglia media un assistente sanitario
@@ -95,14 +91,41 @@ class VertexProvider:
     async def aclose(self) -> None:
         await self._client.aio.aclose()
 
-    async def chat(self, messages: list[ChatMessage], *, system: str | None = None) -> str:
-        contents = [
-            types.Content(
-                role="model" if m.role == "assistant" else "user",
-                parts=[types.Part(text=m.content)],
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ) -> str:
+        res = await self.chat_with_usage(
+            messages,
+            system=system,
+            media_bytes=media_bytes,
+            media_mime_type=media_mime_type,
+        )
+        return res.text
+
+    async def chat_with_usage(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ) -> LLMChatResult:
+        contents: list[types.Content] = []
+        for idx, m in enumerate(messages):
+            parts = [types.Part(text=m.content)]
+            if idx == len(messages) - 1 and media_bytes and media_mime_type:
+                parts.append(types.Part.from_bytes(data=media_bytes, mime_type=media_mime_type))
+            contents.append(
+                types.Content(
+                    role="model" if m.role == "assistant" else "user",
+                    parts=parts,
+                )
             )
-            for m in messages
-        ]
         # Il system prompt va SOLO in system_instruction, mai concatenato all'input utente.
         config = types.GenerateContentConfig(system_instruction=system, **self._config_base)
 
@@ -139,7 +162,15 @@ class VertexProvider:
 
         text = self._extract_text(response)
         self._log_usage(response, time.monotonic() - started, attempt)
-        return text
+        u = getattr(response, "usage_metadata", None)
+        total_tokens = getattr(u, "total_token_count", None) if u else None
+        if total_tokens is None and u is not None:
+            p = getattr(u, "prompt_token_count", 0) or 0
+            c = getattr(u, "candidates_token_count", 0) or 0
+            th = getattr(u, "thoughts_token_count", 0) or 0
+            total_tokens = p + c + th if (p + c + th) > 0 else None
+
+        return LLMChatResult(text=text, tokens_used=total_tokens)
 
     async def generate_structured(
         self,
