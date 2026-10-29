@@ -46,3 +46,5 @@ sources/
 dist/
 build/
 *.egg-info/
+
+docs/
