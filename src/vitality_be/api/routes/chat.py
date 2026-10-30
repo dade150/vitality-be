@@ -1,8 +1,10 @@
 import asyncio
+import json
 import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from vitality_be.core.config import get_settings
@@ -195,6 +197,167 @@ async def chat(
         response_kwargs["attachment_info"] = attachment_out
 
     return ChatResponse(**response_kwargs)
+
+
+@router.post(
+    "/chat/stream",
+    dependencies=[Depends(enforce_rate_limit)],
+)
+async def chat_stream(
+    body: ChatRequest,
+    user: CurrentUserDep,
+    user_db: UserDbDep,
+    llm: Annotated[LLMProvider, Depends(get_llm)],
+    embedder: Annotated[EmbedderProvider, Depends(get_embedder)],
+):
+    """Streaming in tempo reale delle risposte del coach tramite Server-Sent Events (SSE).
+
+    Emette:
+    - delta: {"type": "delta", "text": "..."}
+    - done: {"type": "done", "session_id": ..., "user_message_id": ..., "assistant_message_id": ..., "proposed_entries": [...], "attachment_info": ...}
+    - error: {"type": "error", "message": "..."}
+    """
+    s = get_settings()
+
+    # 1. Validazione e sanitizzazione sincrona dell'allegato multimodale
+    media_bytes: bytes | None = None
+    media_mime: str | None = None
+    attachment_kind = None
+    attachment_meta: dict | None = None
+    attachment_out: AttachmentInfoOut | None = None
+
+    if body.attachment:
+        try:
+            processed = process_and_sanitize_attachment(
+                data_base64=body.attachment.data_base64,
+                mime_type=body.attachment.mime_type,
+                kind=body.attachment.kind,
+                max_bytes=s.max_attachment_bytes,
+            )
+            media_bytes = processed.clean_bytes
+            media_mime = processed.mime_type
+            attachment_kind = processed.kind
+            attachment_meta = processed.to_rag_context_dict()
+            attachment_out = AttachmentInfoOut(
+                has_attachment=True,
+                kind=processed.kind,
+                mime_type=processed.mime_type,
+                size_bytes=processed.size_bytes,
+                exif_stripped=processed.exif_stripped,
+                sha256_prefix=processed.sha256_prefix,
+            )
+        except MultimodalValidationError as exc:
+            raise HTTPException(400, f"Allegato non valido: {exc}") from None
+
+    # 2. Gestione sessione e caricamento cronologia
+    session_id: int | None = body.session_id
+    history_for_llm: list[ChatMessage] = []
+
+    if hasattr(user_db, "table"):
+        try:
+            session_row = await chat_history.get_or_create_session(
+                user_db,
+                user_id=user.id,
+                session_id=session_id,
+                title_seed=body.message or "",
+                attachment_kind=attachment_kind,
+            )
+            session_id = session_row.get("id")
+
+            if session_id and not body.messages:
+                history_for_llm = await chat_history.load_session_messages_for_llm(
+                    user_db,
+                    session_id=session_id,
+                    limit=s.chat_history_window,
+                )
+            elif body.messages and len(body.messages) > 1:
+                history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+        except SessionNotFoundError:
+            raise HTTPException(404, "Sessione di chat non trovata.") from None
+        except Exception as exc:
+            logger.warning("Recupero sessione degradato user={} exc={}", user.id, type(exc).__name__)
+    elif body.messages and len(body.messages) > 1:
+        history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+
+    user_text = body.message or ""
+
+    async def event_generator():
+        try:
+            async with asyncio.timeout(s.chat_request_timeout_s):
+                async with get_gate().slot():
+                    stream_iter = chat_service.stream_chat_pipeline(
+                        llm,
+                        user_message=user_text,
+                        history_messages=history_for_llm,
+                        media_bytes=media_bytes,
+                        media_mime_type=media_mime,
+                        attachment_kind=attachment_kind,
+                        user_db=user_db,
+                        embedder=embedder,
+                    )
+
+                    pipeline_res: chat_service.ChatPipelineResult | None = None
+                    async for event in stream_iter:
+                        if event["type"] == "delta":
+                            payload = {"type": "delta", "text": event["text"]}
+                            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                        elif event["type"] == "done":
+                            pipeline_res = event["result"]
+
+                    if pipeline_res is None:
+                        pipeline_res = chat_service.ChatPipelineResult(reply="")
+
+                    # Salvataggio del turno su Supabase a stream concluso
+                    user_msg_id: int | None = None
+                    asst_msg_id: int | None = None
+                    if session_id and hasattr(user_db, "table"):
+                        proposals_dicts = [p.model_dump() for p in pipeline_res.proposed_entries]
+                        user_msg_id, asst_msg_id = await chat_history.save_chat_turn(
+                            user_db,
+                            session_id=session_id,
+                            user_content=user_text,
+                            assistant_content=pipeline_res.reply,
+                            attachment_meta=attachment_meta,
+                            rag_chunks=pipeline_res.rag_chunks,
+                            proposed_entries=proposals_dicts,
+                            tokens_used=pipeline_res.tokens_used,
+                        )
+
+                    done_payload = {
+                        "type": "done",
+                        "session_id": session_id,
+                        "user_message_id": user_msg_id,
+                        "assistant_message_id": asst_msg_id,
+                        "proposed_entries": [p.model_dump() for p in pipeline_res.proposed_entries],
+                    }
+                    if attachment_out is not None:
+                        done_payload["attachment_info"] = attachment_out.model_dump()
+
+                    yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
+
+        except GateBusy:
+            err_payload = {"type": "error", "message": "Il servizio è molto richiesto. Riprova tra poco."}
+            yield f"data: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
+        except TimeoutError:
+            err_payload = {"type": "error", "message": "Il servizio di chat ci sta mettendo troppo. Riprova."}
+            yield f"data: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
+        except (LLMUnavailable, LLMError):
+            err_payload = {"type": "error", "message": "Il servizio di chat non è al momento disponibile."}
+            yield f"data: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            logger.error("Errore non gestito in stream user={} exc={}", user.id, type(exc).__name__)
+            err_payload = {"type": "error", "message": "Si è verificato un errore imprevisto."}
+            yield f"data: {json.dumps(err_payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/chat/sessions", response_model=ChatSessionListResponse)

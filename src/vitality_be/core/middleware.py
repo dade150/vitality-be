@@ -53,7 +53,7 @@ class BodySizeLimitMiddleware:
         method = scope.get("method", "")
         limit = (
             self.chat_max_bytes
-            if (self.chat_max_bytes is not None and method == "POST" and path == "/api/chat")
+            if (self.chat_max_bytes is not None and method == "POST" and path in ("/api/chat", "/api/chat/stream"))
             else self.max_bytes
         )
 

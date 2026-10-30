@@ -1,4 +1,5 @@
 # llm/base.py
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -53,3 +54,12 @@ class LLMProvider(Protocol):
         media_bytes: bytes | None = None,
         media_mime_type: str | None = None,
     ) -> LLMChatResult: ...
+
+    async def stream_chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ) -> AsyncIterator[str]: ...

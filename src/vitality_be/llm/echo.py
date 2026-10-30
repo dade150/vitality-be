@@ -1,4 +1,5 @@
 # llm/echo.py
+from collections.abc import AsyncIterator
 from vitality_be.llm.base import ChatMessage, LLMChatResult
 
 
@@ -33,6 +34,25 @@ class EchoProvider:
         # Stima fittizia token per i test
         estimated_tokens = sum(len(m.content) for m in messages) // 4 + len(text) // 4
         return LLMChatResult(text=text, tokens_used=estimated_tokens)
+
+    async def stream_chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ) -> AsyncIterator[str]:
+        full_text = await self.chat(
+            messages,
+            system=system,
+            media_bytes=media_bytes,
+            media_mime_type=media_mime_type,
+        )
+        # Emette il testo in piccoli chunk per simulare lo streaming
+        chunk_size = 12
+        for i in range(0, len(full_text), chunk_size):
+            yield full_text[i : i + chunk_size]
 
     async def generate_structured(
         self,

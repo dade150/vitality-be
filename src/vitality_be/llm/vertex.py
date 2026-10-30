@@ -14,6 +14,7 @@ Dati verso Google: nessun grounding, nessun tool, nessun `cached_content`; i pro
 contengono identificativi del paziente (li garantisce il service, che non li riceve).
 """
 import asyncio
+from collections.abc import AsyncIterator
 import random
 import time
 
@@ -171,6 +172,65 @@ class VertexProvider:
             total_tokens = p + c + th if (p + c + th) > 0 else None
 
         return LLMChatResult(text=text, tokens_used=total_tokens)
+
+    async def stream_chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        system: str | None = None,
+        media_bytes: bytes | None = None,
+        media_mime_type: str | None = None,
+    ) -> AsyncIterator[str]:
+        contents: list[types.Content] = []
+        for idx, m in enumerate(messages):
+            parts = [types.Part(text=m.content)]
+            if idx == len(messages) - 1 and media_bytes and media_mime_type:
+                parts.append(types.Part.from_bytes(data=media_bytes, mime_type=media_mime_type))
+            contents.append(
+                types.Content(
+                    role="model" if m.role == "assistant" else "user",
+                    parts=parts,
+                )
+            )
+        config = types.GenerateContentConfig(system_instruction=system, **self._config_base)
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._timeout_s
+
+        try:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise LLMUnavailable("Timeout del provider LLM", code="timeout") from None
+            async with asyncio.timeout(remaining):
+                stream = await self._client.aio.models.generate_content_stream(
+                    model=self.model, contents=contents, config=config
+                )
+                async for chunk in stream:
+                    fb = chunk.prompt_feedback
+                    if fb is not None and fb.block_reason is not None:
+                        raise LLMBlocked("Prompt bloccato dal provider", code=f"prompt_{fb.block_reason.name.lower()}")
+
+                    if not chunk.candidates:
+                        continue
+                    cand = chunk.candidates[0]
+                    reason = cand.finish_reason
+                    if reason in _BLOCKING_FINISH:
+                        raise LLMBlocked("Risposta bloccata dal provider", code=f"finish_{reason.name.lower()}")
+
+                    parts = cand.content.parts if cand.content and cand.content.parts else []
+                    # Scarta i ragionamenti (thoughts)
+                    part_text = "".join(p.text for p in parts if p.text and not p.thought)
+                    if part_text:
+                        yield part_text
+        except TimeoutError:
+            raise LLMUnavailable("Timeout del provider LLM", code="timeout") from None
+        except errors.APIError as exc:
+            code = getattr(exc, "code", None)
+            raise self._map_api_error(code) from None
+        except GoogleAuthError:
+            raise LLMUnavailable("Credenziali Google non disponibili", code="credentials") from None
+        except httpx.TransportError:
+            raise LLMUnavailable("Errore di rete verso il provider", code="network") from None
 
     async def generate_structured(
         self,
