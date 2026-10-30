@@ -8,6 +8,7 @@ from supabase import AuthApiError
 
 os.environ.setdefault("SUPABASE_URL", "http://localhost:54321")
 os.environ.setdefault("SUPABASE_ANON_KEY", "anon-test")
+os.environ["LLM_PROVIDER"] = "echo"
 
 from vitality_be.core import limits, security  # noqa: E402
 from vitality_be.core.config import get_settings  # noqa: E402
@@ -58,6 +59,7 @@ class FakeUserDb:
         class Q:
             def select(self, *_a, **_k): return self
             def eq(self, *_a, **_k): return self
+            def ilike(self, *_a, **_k): return self
             def order(self, *_a, **_k): return self
             def limit(self, *_a, **_k): return self
             def range(self, *_a, **_k): return self
@@ -92,8 +94,10 @@ def make_client(monkeypatch):
     """make_client(provider=FakeProvider(), **env) -> (httpx.AsyncClient, app)"""
     clients = []
 
-    def _make(provider=None, **env):
+    def _make(provider=None, user_db=None, **env):
         monkeypatch.setenv("ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
+        if "llm_provider" not in env:
+            monkeypatch.setenv("LLM_PROVIDER", "echo")
         for k, v in env.items():
             monkeypatch.setenv(k.upper(), str(v))
         _clear_caches()
@@ -104,7 +108,10 @@ def make_client(monkeypatch):
         app.dependency_overrides[get_llm] = lambda: provider or FakeProvider()
         from vitality_be.db.supabase1 import get_user_db
         from vitality_be.llm.embedder import get_embedder
-        app.dependency_overrides.setdefault(get_user_db, lambda: FakeUserDb())
+        if user_db is not None:
+            app.dependency_overrides[get_user_db] = lambda: user_db
+        else:
+            app.dependency_overrides.setdefault(get_user_db, lambda: FakeUserDb())
         app.dependency_overrides.setdefault(get_embedder, lambda: FakeEmbedder())
         client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
