@@ -32,6 +32,13 @@ def format_query_for_embedding(query: str) -> str:
     return f"task: search result | query: {cleaned}"
 
 
+def format_document_for_embedding(title: str, text: str) -> str:
+    """Prefisso asimmetrico per i documenti indicizzati in Gemini Embedding 2."""
+    clean_title = " ".join(title.split()) if title else "Referto clinico"
+    clean_text = " ".join(text.split())
+    return f"title: {clean_title} | text: {clean_text}"
+
+
 def validate_embedding_vector(values: Any, dim: int) -> list[float]:
     if not isinstance(values, list):
         raise ValueError("l'embedding non è una lista")
@@ -77,6 +84,7 @@ class AdcTokenProvider:
 
 class EmbedderProvider(Protocol):
     async def embed_query(self, query: str) -> list[float]: ...
+    async def embed_document(self, title: str, text: str) -> list[float]: ...
 
 
 class EchoEmbedder:
@@ -87,6 +95,10 @@ class EchoEmbedder:
 
     async def embed_query(self, query: str) -> list[float]:
         # Vettore unitario deterministico non nullo
+        val = round(1.0 / math.sqrt(self.dim), 6)
+        return [val] * self.dim
+
+    async def embed_document(self, title: str, text: str) -> list[float]:
         val = round(1.0 / math.sqrt(self.dim), 6)
         return [val] * self.dim
 
@@ -133,6 +145,13 @@ class VertexEmbedder:
 
     async def embed_query(self, query: str) -> list[float]:
         formatted = format_query_for_embedding(query)
+        return await self._embed_formatted_text(formatted)
+
+    async def embed_document(self, title: str, text: str) -> list[float]:
+        formatted = format_document_for_embedding(title, text)
+        return await self._embed_formatted_text(formatted)
+
+    async def _embed_formatted_text(self, formatted: str) -> list[float]:
         payload = {
             "content": {"parts": [{"text": formatted}]},
             "outputDimensionality": self.dim,

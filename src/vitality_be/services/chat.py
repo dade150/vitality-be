@@ -14,7 +14,7 @@ from vitality_be.llm.prompts import get_chat_system_prompt
 from vitality_be.schemas.chat import ChatMessageIn
 from vitality_be.schemas.extraction import ProposedEntry
 from vitality_be.services.extractor import extract_clinical_proposals, extract_from_report
-from vitality_be.services.multimodal import AttachmentKind
+from vitality_be.services.multimodal import AttachmentKind, inspect_pdf_in_ram
 from vitality_be.services.patient_context import (
     PatientContextResult,
     PatientMaskingMap,
@@ -22,8 +22,14 @@ from vitality_be.services.patient_context import (
     fetch_patient_context,
     mask_user_text_with_dynamic_tokens,
     rehydrate_assistant_reply,
+    scrub_report_text,
 )
-from vitality_be.services.retriever import RetrievedChunk, retrieve_chunks
+from vitality_be.services.retriever import (
+    RetrievedChunk,
+    retrieve_chunks,
+    retrieve_patient_reports,
+    vector_literal,
+)
 
 # Risposta fissa e sicura quando i filtri del provider bloccano (HTTP 200, non un errore).
 BLOCKED_REPLY = (
@@ -54,35 +60,84 @@ async def run_chat_pipeline(
 ) -> ChatPipelineResult:
     """Esegue la pipeline Dual-RAG completa con supporto multimodale ed estrazione clinica in parallelo."""
     history: list[ChatMessage] = list(history_messages) if history_messages else []
+
+    # Step 1 (Ispezione PDF in RAM): se PDF nativo con testo, estrae in RAM e azzera media_bytes (zero rete/costi)
+    actual_media_bytes = media_bytes
+    actual_media_mime = media_mime_type
+    extracted_pdf_text = ""
+
+    if media_mime_type == "application/pdf" and media_bytes:
+        try:
+            inspection = inspect_pdf_in_ram(media_bytes)
+            if inspection.is_native_digital:
+                extracted_pdf_text = inspection.extracted_text
+                actual_media_bytes = None
+                actual_media_mime = None
+                logger.info("chat_pipeline PDF nativo convertito in testo RAM chars={}", inspection.alnum_char_count)
+        except Exception as insp_exc:
+            logger.debug("Ispezione PDF chat ignorata exc={}", type(insp_exc).__name__)
+
+    full_user_input = user_message
+    if extracted_pdf_text:
+        full_user_input = (
+            f"{user_message}\n\n[Documento PDF allegato estratto in memoria]\n{extracted_pdf_text}"
+        ).strip()
+
     # Assicura che l'ultimo messaggio sia l'input corrente dell'utente
-    if not history or history[-1].role != "user" or history[-1].content != user_message:
-        history.append(ChatMessage(role="user", content=user_message))
+    if not history or history[-1].role != "user" or history[-1].content != full_user_input:
+        history.append(ChatMessage(role="user", content=full_user_input))
 
     masking_map = PatientMaskingMap()
     active_therapies: tuple[dict, ...] = ()
     chunks: list[RetrievedChunk] = []
     patient_context_xml = ""
 
-    # --- PIPELINE CONVERSAZIONALE (DUAL-RAG) ---
+    # --- PIPELINE CONVERSAZIONALE (DUAL-RAG CON PATIENT REPORTS RETRIEVAL) ---
     if user_db is not None:
-        last_user_query = user_message
+        last_user_query = user_message or "referti e salute"
         if embedder is not None:
-            chunks, patient_ctx = await asyncio.gather(
-                retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder),
-                fetch_patient_context(user_db),
-            )
+            try:
+                query_vector = await embedder.embed_query(last_user_query)
+            except Exception:
+                query_vector = None
+
+            if query_vector is not None:
+                chunks_res, reports_res, patient_ctx = await asyncio.gather(
+                    retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder, query_vector=query_vector),
+                    retrieve_patient_reports(user_db=user_db, query_vector=query_vector, query_text=last_user_query),
+                    fetch_patient_context(user_db),
+                )
+                chunks = chunks_res
+                patient_context_xml = patient_ctx.context_xml
+                if reports_res:
+                    rep_lines = [
+                        f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
+                        f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
+                        for r in reports_res
+                    ]
+                    patient_context_xml = (
+                        patient_context_xml
+                        + "\n\n[Referti Storici Pertinenti Recuperati]\n"
+                        + "\n".join(rep_lines)
+                    )
+            else:
+                chunks, patient_ctx = await asyncio.gather(
+                    retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder),
+                    fetch_patient_context(user_db),
+                )
+                patient_context_xml = patient_ctx.context_xml
         else:
             patient_ctx: PatientContextResult = await fetch_patient_context(user_db)
+            patient_context_xml = patient_ctx.context_xml
 
         masking_map = patient_ctx.masking_map
         active_therapies = patient_ctx.active_therapies
-        patient_context_xml = patient_ctx.context_xml
 
     # De-identificazione sui turni utente prima dell'invio al provider
     scrubbed_history: list[ChatMessage] = []
     for m in history:
         if m.role == "user":
-            scrubbed_text, masking_map = mask_user_text_with_dynamic_tokens(m.content, masking_map)
+            scrubbed_text, masking_map = scrub_report_text(m.content, masking_map)
             scrubbed_history.append(ChatMessage(role="user", content=scrubbed_text))
         else:
             scrubbed_history.append(m)
@@ -105,8 +160,8 @@ async def run_chat_pipeline(
                 return await llm.chat_with_usage(
                     chat_history,
                     system=get_chat_system_prompt(),
-                    media_bytes=media_bytes,
-                    media_mime_type=media_mime_type,
+                    media_bytes=actual_media_bytes,
+                    media_mime_type=actual_media_mime,
                 )
             except TypeError:
                 return await llm.chat_with_usage(
@@ -118,8 +173,8 @@ async def run_chat_pipeline(
             text = await llm.chat(
                 chat_history,
                 system=get_chat_system_prompt(),
-                media_bytes=media_bytes,
-                media_mime_type=media_mime_type,
+                media_bytes=actual_media_bytes,
+                media_mime_type=actual_media_mime,
             )
         except TypeError:
             text = await llm.chat(chat_history, system=get_chat_system_prompt())
@@ -127,8 +182,12 @@ async def run_chat_pipeline(
 
     async def _extract() -> list[ProposedEntry]:
         # Se l'allegato è un referto clinico o un PDF, prova anche l'estrazione dedicata per referti
-        is_report = attachment_kind in ("medical_report", "pdf_document") or media_mime_type == "application/pdf"
-        if not is_report or not (media_bytes and media_mime_type):
+        is_report = (
+            attachment_kind in ("medical_report", "pdf_document")
+            or media_mime_type == "application/pdf"
+            or bool(extracted_pdf_text)
+        )
+        if not is_report or not (actual_media_bytes or extracted_pdf_text):
             return await extract_clinical_proposals(
                 llm,
                 scrubbed_history,
@@ -145,13 +204,52 @@ async def run_chat_pipeline(
         try:
             rep = await extract_from_report(
                 llm,
-                media_bytes=media_bytes,
-                media_mime_type=media_mime_type,
+                report_text=extracted_pdf_text or None,
+                media_bytes=actual_media_bytes,
+                media_mime_type=actual_media_mime,
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
             if rep and rep.proposed_entries:
                 res_proposals.extend(rep.proposed_entries)
+
+            # Se il referto contiene sintesi o valori ed abbiamo user_db ed embedder, salviamo e vettorizziamo
+            if rep and rep.is_medical_report and (rep.clean_summary or rep.proposed_entries) and user_db is not None:
+                try:
+                    rep_title = f"Referto {rep.report_type.replace('_', ' ').title()}"
+                    text_for_embed = f"{rep.clean_summary}\n\n{rep.scrubbed_content[:3000]}".strip()
+                    vector = None
+                    if embedder is not None and text_for_embed and hasattr(embedder, "embed_document"):
+                        vector = await embedder.embed_document(title=rep_title, text=text_for_embed)
+
+                    row_data: dict[str, Any] = {
+                        "source_name": rep_title,
+                        "report_type": rep.report_type,
+                        "report_at": rep.report_at,
+                        "content": rep.scrubbed_content or rep.clean_summary,
+                        "clean_summary": rep.clean_summary,
+                        "extracted_params": {
+                            p.data.get("metric_type", "MISURA"): p.data.get("metric_value")
+                            for p in rep.proposed_entries
+                            if p.target_table == "diabetes_data"
+                        },
+                    }
+                    if vector is not None:
+                        row_data["embedding"] = vector_literal(vector)
+
+                    inserted = await asyncio.to_thread(
+                        lambda: user_db.table("patient_reports").insert(row_data).execute()
+                    )
+                    rows = getattr(inserted, "data", None)
+                    if rows and isinstance(rows, list) and len(rows) > 0:
+                        rep_id = rows[0].get("id")
+                        if rep_id:
+                            for p in rep.proposed_entries:
+                                if p.target_table == "diabetes_data":
+                                    p.data["source_report_id"] = rep_id
+                except Exception as save_exc:
+                    logger.debug("Auto-archiviazione referto chat ignorata exc={}", type(save_exc).__name__)
+
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
@@ -201,8 +299,30 @@ async def stream_chat_pipeline(
     - {'type': 'done', 'result': ChatPipelineResult} al termine di testo ed estrazione clinica
     """
     history: list[ChatMessage] = list(history_messages) if history_messages else []
-    if not history or history[-1].role != "user" or history[-1].content != user_message:
-        history.append(ChatMessage(role="user", content=user_message))
+
+    actual_media_bytes = media_bytes
+    actual_media_mime = media_mime_type
+    extracted_pdf_text = ""
+
+    if media_mime_type == "application/pdf" and media_bytes:
+        try:
+            inspection = inspect_pdf_in_ram(media_bytes)
+            if inspection.is_native_digital:
+                extracted_pdf_text = inspection.extracted_text
+                actual_media_bytes = None
+                actual_media_mime = None
+                logger.info("stream_chat_pipeline PDF nativo convertito in testo RAM chars={}", inspection.alnum_char_count)
+        except Exception as insp_exc:
+            logger.debug("Ispezione PDF stream ignorata exc={}", type(insp_exc).__name__)
+
+    full_user_input = user_message
+    if extracted_pdf_text:
+        full_user_input = (
+            f"{user_message}\n\n[Documento PDF allegato estratto in memoria]\n{extracted_pdf_text}"
+        ).strip()
+
+    if not history or history[-1].role != "user" or history[-1].content != full_user_input:
+        history.append(ChatMessage(role="user", content=full_user_input))
 
     masking_map = PatientMaskingMap()
     active_therapies: tuple[dict, ...] = ()
@@ -210,23 +330,49 @@ async def stream_chat_pipeline(
     patient_context_xml = ""
 
     if user_db is not None:
-        last_user_query = user_message
+        last_user_query = user_message or "referti e salute"
         if embedder is not None:
-            chunks, patient_ctx = await asyncio.gather(
-                retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder),
-                fetch_patient_context(user_db),
-            )
+            try:
+                query_vector = await embedder.embed_query(last_user_query)
+            except Exception:
+                query_vector = None
+
+            if query_vector is not None:
+                chunks_res, reports_res, patient_ctx = await asyncio.gather(
+                    retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder, query_vector=query_vector),
+                    retrieve_patient_reports(user_db=user_db, query_vector=query_vector, query_text=last_user_query),
+                    fetch_patient_context(user_db),
+                )
+                chunks = chunks_res
+                patient_context_xml = patient_ctx.context_xml
+                if reports_res:
+                    rep_lines = [
+                        f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
+                        f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
+                        for r in reports_res
+                    ]
+                    patient_context_xml = (
+                        patient_context_xml
+                        + "\n\n[Referti Storici Pertinenti Recuperati]\n"
+                        + "\n".join(rep_lines)
+                    )
+            else:
+                chunks, patient_ctx = await asyncio.gather(
+                    retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder),
+                    fetch_patient_context(user_db),
+                )
+                patient_context_xml = patient_ctx.context_xml
         else:
             patient_ctx: PatientContextResult = await fetch_patient_context(user_db)
+            patient_context_xml = patient_ctx.context_xml
 
         masking_map = patient_ctx.masking_map
         active_therapies = patient_ctx.active_therapies
-        patient_context_xml = patient_ctx.context_xml
 
     scrubbed_history: list[ChatMessage] = []
     for m in history:
         if m.role == "user":
-            scrubbed_text, masking_map = mask_user_text_with_dynamic_tokens(m.content, masking_map)
+            scrubbed_text, masking_map = scrub_report_text(m.content, masking_map)
             scrubbed_history.append(ChatMessage(role="user", content=scrubbed_text))
         else:
             scrubbed_history.append(m)
@@ -243,8 +389,12 @@ async def stream_chat_pipeline(
         )
 
     async def _extract() -> list[ProposedEntry]:
-        is_report = attachment_kind in ("medical_report", "pdf_document") or media_mime_type == "application/pdf"
-        if not is_report or not (media_bytes and media_mime_type):
+        is_report = (
+            attachment_kind in ("medical_report", "pdf_document")
+            or media_mime_type == "application/pdf"
+            or bool(extracted_pdf_text)
+        )
+        if not is_report or not (actual_media_bytes or extracted_pdf_text):
             return await extract_clinical_proposals(
                 llm,
                 scrubbed_history,
@@ -261,13 +411,51 @@ async def stream_chat_pipeline(
         try:
             rep = await extract_from_report(
                 llm,
-                media_bytes=media_bytes,
-                media_mime_type=media_mime_type,
+                report_text=extracted_pdf_text or None,
+                media_bytes=actual_media_bytes,
+                media_mime_type=actual_media_mime,
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
             if rep and rep.proposed_entries:
                 res_proposals.extend(rep.proposed_entries)
+
+            if rep and rep.is_medical_report and (rep.clean_summary or rep.proposed_entries) and user_db is not None:
+                try:
+                    rep_title = f"Referto {rep.report_type.replace('_', ' ').title()}"
+                    text_for_embed = f"{rep.clean_summary}\n\n{rep.scrubbed_content[:3000]}".strip()
+                    vector = None
+                    if embedder is not None and text_for_embed and hasattr(embedder, "embed_document"):
+                        vector = await embedder.embed_document(title=rep_title, text=text_for_embed)
+
+                    row_data: dict[str, Any] = {
+                        "source_name": rep_title,
+                        "report_type": rep.report_type,
+                        "report_at": rep.report_at,
+                        "content": rep.scrubbed_content or rep.clean_summary,
+                        "clean_summary": rep.clean_summary,
+                        "extracted_params": {
+                            p.data.get("metric_type", "MISURA"): p.data.get("metric_value")
+                            for p in rep.proposed_entries
+                            if p.target_table == "diabetes_data"
+                        },
+                    }
+                    if vector is not None:
+                        row_data["embedding"] = vector_literal(vector)
+
+                    inserted = await asyncio.to_thread(
+                        lambda: user_db.table("patient_reports").insert(row_data).execute()
+                    )
+                    rows = getattr(inserted, "data", None)
+                    if rows and isinstance(rows, list) and len(rows) > 0:
+                        rep_id = rows[0].get("id")
+                        if rep_id:
+                            for p in rep.proposed_entries:
+                                if p.target_table == "diabetes_data":
+                                    p.data["source_report_id"] = rep_id
+                except Exception as save_exc:
+                    logger.debug("Auto-archiviazione referto stream ignorata exc={}", type(save_exc).__name__)
+
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 

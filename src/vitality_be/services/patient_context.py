@@ -62,6 +62,22 @@ _DOCTOR_MENTION_RE = re.compile(
     r"\b(?i:dott\.?(?:ssa|ore|oressa)?|dr\.?(?:ssa)?|prof\.?(?:ssa|essore|essoressa)?)"
     r"\s+[A-ZÀ-Ú][a-zà-ú']+(?:\s+[A-ZÀ-Ú][a-zà-ú']+)?\b"
 )
+_HOSPITAL_RE = re.compile(
+    r"\b(?:"
+    r"ospedale(?:\s+civile|\s+maggiore|\s+san\b|\s+santa\b|\s+s\.)?|"
+    r"policlinico|clinica|casa\s+di\s+cura|irccs|"
+    r"asl\b|ausl\b|asst\b|aou\b|ao\b|ulss\b|ats\b|"
+    r"azienda\s+(?:ospedaliera|sanitaria|usl|ulss)(?:\s+universitaria)?|"
+    r"laboratorio(?:\s+analisi|\s+medico|\s+clinico)?"
+    r")\s+[A-ZÀ-Ú0-9][A-Za-zÀ-ú0-9'’.\-]*(?:\s+[A-ZÀ-Ú0-9][A-Za-zÀ-ú0-9'’.\-]*){0,4}",
+    re.IGNORECASE,
+)
+_REPORT_HEADER_PII_RE = re.compile(
+    r"(?im)^[ \t]*(?:paziente|assistito/a?|intestatario|sig\.?(?:ra)?|cognome\s+e\s+nome|"
+    r"nato/a?\s+(?:a|il)|luogo\s+e\s+data\s+di\s+nascita|residente\s+(?:a|in)|"
+    r"domicilio|cod\.?\s*fisc\.?|codice\s+fiscale|tessera\s+sanitaria|"
+    r"impegnativa\s+n\.?|accettazione\s+n\.?|id\s+campione|barcode)\s*[:.]\s*[^\r\n]+$"
+)
 
 # Normalizzazione dei tipi di esame in `diabetes_data.metric_type` (gestisce i duplicati dell'enum)
 _LAB_METRIC_LABELS: dict[str, tuple[str, str]] = {
@@ -207,8 +223,8 @@ def _extract_first_float(raw_value: Any) -> float | None:
 
 
 def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = None) -> str:
-    """Rimuove email, numeri di telefono, codici fiscali, IBAN, tessere sanitarie, indirizzi
-    e il nome/cognome/medico reale dal testo libero prima di qualsiasi invio a Vertex AI."""
+    """Rimuove email, numeri di telefono, codici fiscali, IBAN, tessere sanitarie, indirizzi,
+    strutture sanitarie/ospedali e il nome/cognome/medico reale dal testo libero prima di qualsiasi invio a Vertex AI."""
     if not text:
         return ""
     cleaned = str(text)
@@ -218,6 +234,7 @@ def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = No
     cleaned = _HEALTH_CARD_RE.sub("[TESSERA_SANITARIA_RIMOSSA]", cleaned)
     cleaned = _PHONE_RE.sub("[TELEFONO_RIMOSSO]", cleaned)
     cleaned = _ADDRESS_RE.sub("[INDIRIZZO_RIMOSSO]", cleaned)
+    cleaned = _HOSPITAL_RE.sub("[STRUTTURA_SANITARIA_RIMOSSA]", cleaned)
 
     if masking_map is not None:
         # Se il cognome compare nel testo, lo oscuriamo prima del nome
@@ -264,7 +281,7 @@ def scrub_for_db_storage(text: str | None) -> str:
     questa funzione:
     1. Mantiene il testo naturale leggibile dall'utente (incluso il proprio nome e il nome del medico).
     2. Rimuove e sostituisce SEMPRE identificativi critici scritti per errore (Codice Fiscale,
-       IBAN, Tessera Sanitaria, Email, Numero di Telefono, Indirizzo di casa).
+       IBAN, Tessera Sanitaria, Email, Numero di Telefono, Indirizzo di casa, Ospedale/Struttura).
     """
     if not text:
         return ""
@@ -275,7 +292,27 @@ def scrub_for_db_storage(text: str | None) -> str:
     cleaned = _HEALTH_CARD_RE.sub("[TESSERA_SANITARIA_RIMOSSA]", cleaned)
     cleaned = _PHONE_RE.sub("[TELEFONO_RIMOSSO]", cleaned)
     cleaned = _ADDRESS_RE.sub("[INDIRIZZO_RIMOSSO]", cleaned)
+    cleaned = _HOSPITAL_RE.sub("[STRUTTURA_SANITARIA_RIMOSSA]", cleaned)
     return cleaned.strip()
+
+
+def scrub_report_text(
+    text: str | None,
+    masking_map: PatientMaskingMap | None = None,
+) -> tuple[str, PatientMaskingMap]:
+    """De-identificazione e scrubbing PII specifico per referti clinici (GDPR Art. 9).
+
+    Rimuove blocchi anagrafici d'intestazione (Paziente, CF, ASL, Ospedale, Barcode),
+    strutture sanitarie, identificativi diretti e maschera i nomi con token reversibili.
+    """
+    if not text:
+        return "", masking_map or PatientMaskingMap()
+
+    # 1. Rimozione selettiva delle righe di intestazione anagrafica tipiche dei referti
+    no_header = _REPORT_HEADER_PII_RE.sub("[INTESTAZIONE_ANAGRAFICA_RIMOSSA]", str(text))
+
+    # 2. Mascheramento dinamico medici e scrubbing completo (CF, nome, tel, ospedale, indirizzo)
+    return mask_user_text_with_dynamic_tokens(no_header, masking_map)
 
 
 def mask_user_text_with_dynamic_tokens(
@@ -485,9 +522,9 @@ def _fetch_all_tables_sync(user_db: Client) -> tuple[list[dict[str, Any]], ...]:
         "patient_reports",
         lambda: (
             user_db.table("patient_reports")
-            .select("report_type, source_name, content, report_at, created_at")
+            .select("id, report_type, source_name, content, clean_summary, extracted_params, report_at, created_at")
             .order("report_at", desc=True)
-            .limit(3)
+            .limit(5)
             .execute()
         ),
     )
@@ -791,12 +828,14 @@ def _format_appointments_and_reports_section(
         doctor_tokens=doctor_tokens,
     )
 
-    for rep in report_rows[:3]:
+    for rep in report_rows[:5]:
         r_type = str(rep.get("report_type") or "REFERTO").strip().upper()
+        s_name = scrub_free_text(rep.get("source_name"), updated_map) or "Referto"
         r_date = _format_timestamp(rep.get("report_at") or rep.get("created_at"), now=now, include_time=False)
-        r_content = scrub_free_text(rep.get("content"), updated_map)
+        raw_text = rep.get("clean_summary") or rep.get("content") or ""
+        r_content = scrub_free_text(raw_text, updated_map)
         if r_content:
-            lines.append(f"Referto [{r_type}] del {r_date}: {r_content[:240]}")
+            lines.append(f"Referto [{r_type}] - {s_name} (del {r_date}): {r_content[:350]}")
 
     if not lines:
         return None, updated_map

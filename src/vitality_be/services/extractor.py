@@ -38,11 +38,13 @@ from vitality_be.schemas.extraction import (
     TherapyPlanProposal,
     canonicalize_metric_type,
 )
+from vitality_be.services.multimodal import inspect_pdf_in_ram
 from vitality_be.services.patient_context import (
     PatientMaskingMap,
     mask_user_text_with_dynamic_tokens,
     rehydrate_assistant_reply,
     scrub_free_text,
+    scrub_report_text,
 )
 
 
@@ -132,7 +134,7 @@ def _normalize_iso_timestamp(raw_ts: str | None, *, fallback_iso: str) -> str:
 
 def _number_appears_in_source_text(metric_value: str, source_text: str) -> bool:
     """Verifica anti-allucinazione: le cifre del parametro vitale estratto devono comparire
-    realmente nel testo dell'utente (es. '130/80' -> '130' e '80', '6.8' -> '6.8' o '6,8')."""
+    realmente nel testo dell'utente (es. '130/80' -> '130' e '80', '6.8' -> '6.8', '6.80' o '6,8')."""
     if not source_text:
         return False
     norm_source = source_text.replace(",", ".")
@@ -140,7 +142,10 @@ def _number_appears_in_source_text(metric_value: str, source_text: str) -> bool:
     if not parts:
         return False
     for p in parts:
-        pattern = rf"(?<!\d){re.escape(p)}(?!\d)"
+        if "." in p:
+            pattern = rf"(?<!\d){re.escape(p)}0*(?!\d)"
+        else:
+            pattern = rf"(?<!\d){re.escape(p)}(?:\.0+)?(?!\d)"
         if not re.search(pattern, norm_source):
             return False
     return True
@@ -533,22 +538,62 @@ async def extract_from_report(
     (`Colesterolo Totale`, `HDL`, `LDL`, `Trigliceridi`), renale (`eGFR`, `UACR`) e pressorio
     (`PRESSIONE`) da un referto medico testuale oppure da una foto/PDF (`media_bytes`).
 
-    Applica sempre lo scrubbing dei dati sensibili prima dell'invio (per il testo) e sulla
-    sintesi `clean_summary` prodotta in uscita.
+    Pipeline ibrida in 3 step:
+    1. Ispezione PDF in RAM (PyMuPDF): se digitale nativo, estrae testo e tabelle a costo zero (media_bytes -> None).
+    2. De-identificazione difensiva (GDPR Art. 9): rimozione CF, intestazioni anagrafiche, nomi e strutture sanitarie.
+    3. Estrazione strutturata Pydantic v2 con sintesi clinica e guardrail anti-allucinazione.
     """
     if not hasattr(llm, "generate_structured"):
         return ReportExtractionResult()
     if not report_text and not media_bytes:
         return ReportExtractionResult()
 
+    extraction_method: Literal["pymupdf_native", "gemini_vision", "text"] = "text"
+    actual_media_bytes = media_bytes
+    actual_mime_type = media_mime_type
+    raw_source_text = report_text or ""
+
+    # Step 1: Ispezione in RAM per PDF se report_text non è già stato estratto
+    if actual_mime_type == "application/pdf" and actual_media_bytes and not raw_source_text:
+        try:
+            inspection = inspect_pdf_in_ram(actual_media_bytes)
+            if inspection.is_native_digital:
+                raw_source_text = inspection.extracted_text
+                # Zero byte e zero PII inviate a Vertex AI Vision, elaborazione puramente testuale
+                actual_media_bytes = None
+                actual_mime_type = None
+                extraction_method = "pymupdf_native"
+                logger.info(
+                    "extract_from_report uso testo nativo PyMuPDF chars={} pagine={}",
+                    inspection.alnum_char_count,
+                    inspection.page_count,
+                )
+            else:
+                extraction_method = "gemini_vision"
+                logger.info(
+                    "extract_from_report PDF scansionato/raster: fallback su Gemini Multimodale pagine={}",
+                    inspection.page_count,
+                )
+        except Exception as insp_exc:
+            logger.warning("Ispezione PDF fallita, procedo con fallback multimodale exc={}", type(insp_exc).__name__)
+            extraction_method = "gemini_vision"
+    elif actual_media_bytes:
+        extraction_method = "gemini_vision"
+    else:
+        extraction_method = "text"
+
     iso_now, human_now = _format_rome_now(now)
-    scrubbed_text, updated_map = mask_user_text_with_dynamic_tokens(report_text, masking_map)
+
+    # Step 2: De-identificazione e Scrubbing PII (GDPR Art. 9) sul testo prima dell'invio
+    scrubbed_text, updated_map = scrub_report_text(raw_source_text, masking_map)
 
     prompt_parts = [
         f"<timestamp_corrente>\n{human_now}\n</timestamp_corrente>",
         "Estrai dal referto medico tutti i parametri clinici ed ematochimici "
         "(GLICEMIA, HbA1c, Colesterolo Totale, HDL, LDL, Trigliceridi, eGFR, UACR, PRESSIONE) "
-        "e genera una sintesi clinica oggettiva completamente priva di dati identificativi.",
+        "e genera una sintesi clinica oggettiva ('clean_summary') completamente priva di dati identificativi "
+        "(non includere MAI nomi di pazienti, codici fiscali, ospedali, indirizzi o date di nascita). "
+        "In 'clinical_findings_text' trascrivi in modo schematico e de-identificato le principali conclusioni diagnostiche.",
     ]
     if scrubbed_text:
         prompt_parts.append(f"<testo_referto>\n{scrubbed_text}\n</testo_referto>")
@@ -558,8 +603,8 @@ async def extract_from_report(
             [ChatMessage(role="user", content="\n\n".join(prompt_parts))],
             system=get_extraction_system_prompt(),
             response_schema=LLMReportExtractionBatch,
-            media_bytes=media_bytes,
-            media_mime_type=media_mime_type,
+            media_bytes=actual_media_bytes,
+            media_mime_type=actual_mime_type,
         )
     except Exception as exc:
         logger.warning("extractor report fallito exc={}", type(exc).__name__)
@@ -587,20 +632,35 @@ async def extract_from_report(
         if entry is not None:
             proposals.append(entry)
 
-    clean_summary = scrub_free_text(batch.clean_summary, updated_map)
-    clean_summary = rehydrate_assistant_reply(clean_summary, updated_map)
+    # Sanitizzazione difensiva di ritorno su clean_summary e note
+    clean_summary_scrubbed, updated_map = scrub_report_text(batch.clean_summary, updated_map)
+    clean_summary_final = rehydrate_assistant_reply(clean_summary_scrubbed, updated_map).strip()
+
+    clean_findings_scrubbed, _ = scrub_report_text(batch.clinical_findings_text, updated_map)
+
+    # Il testo de-identificato completo da archiviare e vettorizzare
+    scrubbed_content = scrubbed_text or clean_findings_scrubbed or clean_summary_final
+
+    r_type = batch.report_type or "ANALISI_SANGUE"
+    is_med = bool(batch.is_medical_report)
 
     try:
         return ReportExtractionResult(
-            report_type=batch.report_type or "ANALISI_SANGUE",
+            is_medical_report=is_med,
+            report_type=r_type,  # type: ignore[arg-type]
             report_at=report_iso,
-            clean_summary=clean_summary,
+            clean_summary=clean_summary_final,
+            scrubbed_content=scrubbed_content,
+            extraction_method=extraction_method,
             proposed_entries=proposals,
         )
     except Exception:
         return ReportExtractionResult(
+            is_medical_report=is_med,
             report_type="ALTRO",
             report_at=report_iso,
-            clean_summary=clean_summary,
+            clean_summary=clean_summary_final,
+            scrubbed_content=scrubbed_content,
+            extraction_method=extraction_method,
             proposed_entries=proposals,
         )

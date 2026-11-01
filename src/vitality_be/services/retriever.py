@@ -22,6 +22,7 @@ from vitality_be.core.config import get_settings
 from vitality_be.llm.embedder import EmbedderProvider
 
 RPC_HYBRID_SEARCH = "hybrid_search_chunks"
+RPC_SEARCH_PATIENT_REPORTS = "search_patient_reports"
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ async def retrieve_chunks(
     *,
     user_db: Client,
     embedder: EmbedderProvider,
+    query_vector: list[float] | None = None,
     semantic_top_k: int | None = None,
     fts_top_k: int | None = None,
     match_count: int | None = None,
@@ -87,19 +89,21 @@ async def retrieve_chunks(
     k_rrf = rrf_k if rrf_k is not None else s.rag_rrf_k
 
     started = time.monotonic()
-    try:
-        query_vector = await embedder.embed_query(query)
-    except Exception as exc:
-        logger.warning(
-            "rag embedding fallito exc={} code={}",
-            type(exc).__name__,
-            getattr(exc, "code", None),
-        )
-        return []
+    vector = query_vector
+    if vector is None:
+        try:
+            vector = await embedder.embed_query(query)
+        except Exception as exc:
+            logger.warning(
+                "rag embedding fallito exc={} code={}",
+                type(exc).__name__,
+                getattr(exc, "code", None),
+            )
+            return []
 
     params = {
         "query_text": query,
-        "query_embedding": vector_literal(query_vector),
+        "query_embedding": vector_literal(vector),
         "semantic_top_k": sem_k,
         "fts_top_k": lex_k,
         "match_count": top_n,
@@ -131,6 +135,46 @@ async def retrieve_chunks(
         elapsed_ms,
     )
     return chunks
+
+
+async def retrieve_patient_reports(
+    *,
+    user_db: Client,
+    query_vector: list[float],
+    query_text: str = "",
+    match_count: int = 4,
+    min_similarity: float = 0.40,
+) -> list[dict[str, Any]]:
+    """Esegue la ricerca semantica (vettoriale) sui referti archiviati del paziente loggato (RLS attiva)."""
+    if not hasattr(user_db, "rpc") or not query_vector:
+        return []
+
+    started = time.monotonic()
+    params = {
+        "query_embedding": vector_literal(query_vector),
+        "query_text": query_text,
+        "match_count": match_count,
+    }
+
+    try:
+        resp = await asyncio.to_thread(
+            lambda: user_db.rpc(RPC_SEARCH_PATIENT_REPORTS, params).execute()
+        )
+        rows = resp.data if resp and isinstance(resp.data, list) else []
+    except Exception as exc:
+        logger.debug("search_patient_reports rpc ignorata exc={}", type(exc).__name__)
+        return []
+
+    relevant = [
+        r for r in rows
+        if isinstance(r, dict) and float(r.get("similarity") or 0.0) >= min_similarity
+    ]
+    logger.info(
+        "patient_reports search ok matches={} ms={}",
+        len(relevant),
+        int((time.monotonic() - started) * 1000),
+    )
+    return relevant
 
 
 def format_rag_context(chunks: list[RetrievedChunk]) -> str:

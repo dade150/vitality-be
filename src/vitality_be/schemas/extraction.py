@@ -344,9 +344,12 @@ class ReportExtractionResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    is_medical_report: bool = True
     report_type: CanonicalReportType = "ANALISI_SANGUE"
     report_at: str | None = None
     clean_summary: str = ""
+    scrubbed_content: str = ""
+    extraction_method: Literal["pymupdf_native", "gemini_vision", "text"] = "pymupdf_native"
     proposed_entries: list[ProposedEntry] = Field(default_factory=list)
 
 
@@ -412,7 +415,9 @@ class LLMExtractionBatch(BaseModel):
 class LLMReportExtractionBatch(BaseModel):
     """Schema radice passato a `GenerateContentConfig.response_schema` per i referti (testo o foto)."""
 
+    is_medical_report: bool = True
     report_type: str = "ANALISI_SANGUE"
     report_date_iso: str | None = None
     clean_summary: str = ""
+    clinical_findings_text: str = ""
     items: list[RawExtractedItem] = Field(default_factory=list)

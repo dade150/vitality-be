@@ -15,6 +15,7 @@ import io
 import re
 from typing import Literal
 
+import pymupdf
 from loguru import logger
 
 ALLOWED_MIME_TYPES = {
@@ -36,6 +37,16 @@ AttachmentKind = Literal[
 
 class MultimodalValidationError(ValueError):
     """Sollevata quando un file allegato non rispetta i vincoli di sicurezza o integrità."""
+
+
+@dataclass(frozen=True)
+class PdfInspectionResult:
+    """Esito dell'ispezione preliminare di un PDF in RAM."""
+
+    is_native_digital: bool
+    extracted_text: str
+    page_count: int
+    alnum_char_count: int
 
 
 @dataclass(frozen=True)
@@ -163,35 +174,102 @@ def _sanitize_image_metadata(data: bytes, mime_type: str) -> tuple[bytes, bool]:
 
 
 def _check_pdf_safety(data: bytes) -> None:
-    """Verifica che un PDF non contenga macro o script JavaScript malevoli."""
-    # Controllo rapido su script attivi
+    """Verifica che un PDF non contenga macro, script o azioni malevole."""
     lower = data.lower()
-    if b"/javascript" in lower or b"/js" in lower:
-        # Verifica se è un tag reale di azione PDF
-        if re.search(rb"/(?:javascript|js)\b", lower):
-            raise MultimodalValidationError("Il PDF contiene script attivi non ammessi per ragioni di sicurezza.")
+    dangerous_keywords = (b"/javascript", b"/js", b"/launch", b"/embeddedfiles", b"/richmedia")
+    for kw in dangerous_keywords:
+        if kw in lower:
+            pattern = rb"/" + re.escape(kw[1:]) + rb"\b"
+            if re.search(pattern, lower):
+                raise MultimodalValidationError(
+                    "Il PDF contiene script attivi o elementi malevoli non ammessi per ragioni di sicurezza."
+                )
 
 
-def process_and_sanitize_attachment(
+def inspect_pdf_in_ram(pdf_bytes: bytes, *, max_pages: int = 15) -> PdfInspectionResult:
+    """Ispeziona il PDF interamente in memoria RAM tramite PyMuPDF.
+
+    Determina se il documento è digitale nativo (con testo e tabelle estraibili a costo zero
+    e senza chiamate di rete) oppure una scansione/foto che richiede OCR multimodale.
+    """
+    if not pdf_bytes:
+        return PdfInspectionResult(is_native_digital=False, extracted_text="", page_count=0, alnum_char_count=0)
+
+    try:
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as exc:
+        raise MultimodalValidationError(f"Impossibile leggere la struttura del PDF: {exc}") from None
+
+    try:
+        page_count = doc.page_count
+        if page_count > max_pages:
+            raise MultimodalValidationError(
+                f"Il documento PDF contiene troppe pagine ({page_count}). Il limite massimo è {max_pages}."
+            )
+
+        extracted_pages: list[str] = []
+        for page_idx in range(page_count):
+            page = doc[page_idx]
+            page_text = page.get_text("text", sort=True) or ""
+
+            # Estrazione tabelle vettoriali in Markdown se presenti
+            try:
+                tabs = page.find_tables()
+                if tabs and getattr(tabs, "tables", None):
+                    t_mds: list[str] = []
+                    for t in tabs:
+                        md = t.to_markdown()
+                        if md and md.strip():
+                            t_mds.append(md.strip())
+                    if t_mds:
+                        page_text = (
+                            page_text.strip()
+                            + "\n\n[Tabelle Estratte Pagina "
+                            + str(page_idx + 1)
+                            + "]\n"
+                            + "\n\n".join(t_mds)
+                        )
+            except Exception as tab_exc:
+                logger.debug("Estrazione tabelle fitz ignorata pag={} exc={}", page_idx, type(tab_exc).__name__)
+
+            if page_text.strip():
+                extracted_pages.append(f"--- Pagina {page_idx + 1} ---\n{page_text.strip()}")
+
+        full_text = "\n\n".join(extracted_pages).strip()
+        alnum_chars = len(re.findall(r"[A-Za-z0-9]", full_text))
+
+        # Se ci sono almeno 80 caratteri alfanumerici (o almeno 40 per pagina singola) è digitale nativo
+        is_native = alnum_chars >= (80 if page_count > 1 else 40)
+
+        logger.info(
+            "pdf inspection pages={} alnum_chars={} is_native={}",
+            page_count,
+            alnum_chars,
+            is_native,
+        )
+
+        return PdfInspectionResult(
+            is_native_digital=is_native,
+            extracted_text=full_text if is_native else "",
+            page_count=page_count,
+            alnum_char_count=alnum_chars,
+        )
+    finally:
+        doc.close()
+
+
+def process_raw_attachment_bytes(
     *,
-    data_base64: str,
+    raw_bytes: bytes,
     mime_type: str,
-    kind: AttachmentKind = "generic_image",
+    kind: AttachmentKind = "medical_report",
     max_bytes: int = 5 * 1024 * 1024,
 ) -> ProcessedAttachment:
-    """Decodifica, valida e ripulisce in RAM un allegato multimodale.
-
-    Solleva `MultimodalValidationError` se il file è invalido, corrotto o pericoloso.
-    """
+    """Valida e ripulisce in RAM un allegato partendo direttamente dai byte grezzi (es. upload multipart)."""
     if mime_type not in ALLOWED_MIME_TYPES:
         raise MultimodalValidationError(
             f"Tipo MIME '{mime_type}' non consentito. Formati ammessi: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
         )
-
-    try:
-        raw_bytes = base64.b64decode(data_base64, validate=True)
-    except Exception:
-        raise MultimodalValidationError("Dati base64 dell'allegato non validi.") from None
 
     if len(raw_bytes) > max_bytes:
         raise MultimodalValidationError(
@@ -212,7 +290,7 @@ def process_and_sanitize_attachment(
     sha256_prefix = hashlib.sha256(clean_bytes).hexdigest()[:12]
 
     logger.info(
-        "multimodal processed kind={} mime={} bytes_in={} bytes_out={} exif_stripped={}",
+        "multimodal raw processed kind={} mime={} bytes_in={} bytes_out={} exif_stripped={}",
         kind,
         mime_type,
         len(raw_bytes),
@@ -227,4 +305,28 @@ def process_and_sanitize_attachment(
         size_bytes=len(clean_bytes),
         exif_stripped=exif_stripped,
         sha256_prefix=sha256_prefix,
+    )
+
+
+def process_and_sanitize_attachment(
+    *,
+    data_base64: str,
+    mime_type: str,
+    kind: AttachmentKind = "generic_image",
+    max_bytes: int = 5 * 1024 * 1024,
+) -> ProcessedAttachment:
+    """Decodifica, valida e ripulisce in RAM un allegato multimodale codificato in base64.
+
+    Solleva `MultimodalValidationError` se il file è invalido, corrotto o pericoloso.
+    """
+    try:
+        raw_bytes = base64.b64decode(data_base64, validate=True)
+    except Exception:
+        raise MultimodalValidationError("Dati base64 dell'allegato non validi.") from None
+
+    return process_raw_attachment_bytes(
+        raw_bytes=raw_bytes,
+        mime_type=mime_type,
+        kind=kind,
+        max_bytes=max_bytes,
     )
