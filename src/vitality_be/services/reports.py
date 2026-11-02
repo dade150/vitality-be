@@ -112,6 +112,10 @@ def _build_embedding_document_text(
     return "\n\n".join(parts).strip()
 
 
+class NonMedicalDocumentError(ValueError):
+    """Sollevata quando il file caricato non è un referto medico valido o è illeggibile."""
+
+
 async def process_and_ingest_report(
     *,
     attachment: ProcessedAttachment,
@@ -140,6 +144,17 @@ async def process_and_ingest_report(
         masking_map=resolved_map,
         active_therapies=active_therapies,
     )
+
+    if not extraction.is_medical_report or (
+        not extraction.proposed_entries
+        and not (extraction.clean_summary or "").strip()
+        and not (extraction.scrubbed_content or "").strip()
+    ):
+        logger.info("Upload referto rifiutato: documento non sanitario o illeggibile")
+        raise NonMedicalDocumentError(
+            "Il documento caricato non sembra essere un referto medico leggibile. "
+            "Assicurati che l'immagine sia nitida e contenga valori clinici."
+        )
 
     # Normalizza data referto: usa il suggerimento esplicito se fornito, altrimenti la data estratta
     report_at = report_date_hint or extraction.report_at

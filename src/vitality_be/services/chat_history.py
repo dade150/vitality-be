@@ -147,6 +147,8 @@ async def save_chat_turn(
     rag_chunks: list[dict[str, Any]] | None = None,
     proposed_entries: list[dict[str, Any]] | None = None,
     tokens_used: int | None = None,
+    is_emergency: bool = False,
+    guardrail_category: str | None = None,
 ) -> tuple[int | None, int | None]:
     """Salva la coppia di messaggi (user + assistant) in `public.chat_message`.
 
@@ -162,6 +164,10 @@ async def save_chat_turn(
         asst_rag_ctx["rag_chunks"] = rag_chunks
     if proposed_entries:
         asst_rag_ctx["proposed_entries"] = proposed_entries
+    if is_emergency:
+        asst_rag_ctx["is_emergency"] = is_emergency
+    if guardrail_category:
+        asst_rag_ctx["guardrail_category"] = guardrail_category
 
     payload_user = {
         "session_id": session_id,
@@ -256,8 +262,12 @@ async def get_session_with_messages(
         rag_ctx = r.get("rag_context") or {}
         att_info = None
         props = []
+        is_emer = False
+        gr_cat = None
 
         if isinstance(rag_ctx, dict):
+            is_emer = bool(rag_ctx.get("is_emergency"))
+            gr_cat = rag_ctx.get("guardrail_category")
             raw_att = rag_ctx.get("attachment")
             if isinstance(raw_att, dict) and raw_att.get("has_attachment"):
                 att_info = {
@@ -281,6 +291,8 @@ async def get_session_with_messages(
                 "created_at": r.get("created_at"),
                 "attachment_info": att_info,
                 "proposed_entries": props,
+                "is_emergency": is_emer,
+                "guardrail_category": gr_cat,
             }
         )
 

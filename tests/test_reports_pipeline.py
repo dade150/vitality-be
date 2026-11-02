@@ -13,7 +13,7 @@ from vitality_be.schemas.extraction import (
 from vitality_be.services.extractor import extract_from_report
 from vitality_be.services.multimodal import inspect_pdf_in_ram, process_raw_attachment_bytes
 from vitality_be.services.patient_context import PatientMaskingMap, scrub_report_text
-from vitality_be.services.reports import process_and_ingest_report
+from vitality_be.services.reports import NonMedicalDocumentError, process_and_ingest_report
 
 
 class FakeStructuredReportLLM:
@@ -206,3 +206,124 @@ def test_step4_reports_pipeline_ingest():
     assert saved_row["embedding"] is not None
     assert saved_row["embedding"].startswith("[")
     assert saved_row["clean_summary"] != ""
+
+
+def test_reject_non_medical_report_upload():
+    """Verifica che un documento non medico o illeggibile venga scartato senza inserimento nel DB (EU AI Act Art. 15)."""
+    non_medical_batch = LLMReportExtractionBatch(
+        is_medical_report=False,
+        report_type="ALTRO",
+        clean_summary="",
+        items=[],
+    )
+    llm = FakeStructuredReportLLM(batch=non_medical_batch)
+    embedder = EchoEmbedder(dim=1536)
+
+    class MockTable:
+        def __init__(self):
+            self.last_inserted = None
+
+        def insert(self, data):
+            self.last_inserted = data
+            return self
+
+        def select(self, *_a, **_kw):
+            return self
+
+        def limit(self, *_a, **_kw):
+            return self
+
+        def execute(self):
+            class Resp:
+                data = []
+            return Resp()
+
+    class MockUserDb:
+        def __init__(self):
+            self.rep_table = MockTable()
+
+        def table(self, _name):
+            return self.rep_table
+
+    user_db = MockUserDb()
+    pdf_bytes = create_synthetic_pdf(
+        "Scontrino Fiscale Supermercato - Spesa alimentare del giorno 15/10/2026 - Totale Euro 42,50"
+    )
+    processed = process_raw_attachment_bytes(
+        raw_bytes=pdf_bytes,
+        mime_type="application/pdf",
+        kind="medical_report",
+    )
+
+    with pytest.raises(NonMedicalDocumentError, match="referto medico leggibile"):
+        _run_coro_sync(
+            process_and_ingest_report(
+                attachment=processed,
+                title="Scontrino",
+                user_db=user_db,
+                llm=llm,
+                embedder=embedder,
+            )
+        )
+    assert user_db.rep_table.last_inserted is None
+
+
+def test_gdpr_export_and_delete_account_endpoints():
+    """Verifica gli endpoint GDPR Art. 20 (GET /api/me/export) e Art. 17 (DELETE /api/me)."""
+    import json
+    from vitality_be.api.routes.me import delete_my_account_and_data, export_my_personal_data
+    from vitality_be.core.security import CurrentUser
+
+    user = CurrentUser(id="user-gdpr-1", email="mario@test.it", token="fake-jwt")
+
+    class MockQuery:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def select(self, *_a, **_kw):
+            return self
+
+        def delete(self):
+            return self
+
+        def eq(self, *_a, **_kw):
+            return self
+
+        def execute(self):
+            class Resp:
+                data = self.rows
+            return Resp()
+
+    class MockGdprDb:
+        def __init__(self):
+            self.rpc_called = False
+
+        def table(self, name):
+            if name == "diabetes_data":
+                return MockQuery([{"id": 1, "metric_type": "GLICEMIA", "metric_value": "118"}])
+            if name == "user":
+                return MockQuery([{"id": "user-gdpr-1", "name": "Mario", "surname": "Rossi", "consenso_privacy": True}])
+            return MockQuery([])
+
+        def rpc(self, fn_name, _params):
+            assert fn_name == "delete_own_account"
+            self.rpc_called = True
+            return MockQuery([])
+
+    db = MockGdprDb()
+
+    # 1. Test Export JSON (Art. 20 GDPR)
+    export_resp = _run_coro_sync(export_my_personal_data(user=user, user_db=db))
+    assert export_resp.status_code == 200
+    assert "attachment; filename=" in export_resp.headers["content-disposition"]
+    payload = json.loads(export_resp.body.decode("utf-8"))
+    assert payload["metadata"]["user_id"] == "user-gdpr-1"
+    assert payload["account_and_consents"]["name"] == "Mario"
+    assert payload["health_diary"]["diabetes_and_clinical_measurements"][0]["metric_value"] == "118"
+
+    # 2. Test Delete Account (Art. 17 GDPR)
+    del_resp = _run_coro_sync(delete_my_account_and_data(user=user, user_db=db))
+    assert del_resp.status_code == 204
+    assert db.rpc_called is True
+
+

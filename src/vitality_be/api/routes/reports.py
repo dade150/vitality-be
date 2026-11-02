@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated
+from datetime import datetime, timezone
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from loguru import logger
 
 from vitality_be.core.config import get_settings
@@ -16,7 +17,8 @@ from vitality_be.llm.embedder import EmbedderProvider, get_embedder
 from vitality_be.llm.factory import get_llm
 from vitality_be.schemas.reports import ReportUploadResponse
 from vitality_be.services.multimodal import MultimodalValidationError, process_raw_attachment_bytes
-from vitality_be.services.reports import process_and_ingest_report
+from vitality_be.services.pdf_summary import generate_patient_summary_pdf
+from vitality_be.services.reports import NonMedicalDocumentError, process_and_ingest_report
 
 router = APIRouter(tags=["reports"])
 
@@ -87,6 +89,11 @@ async def upload_report(
                     embedder=embedder,
                 )
                 return result
+    except NonMedicalDocumentError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            str(exc),
+        ) from None
     except GateBusy:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -105,3 +112,51 @@ async def upload_report(
             status.HTTP_502_BAD_GATEWAY,
             "Servizio di comprensione referti momentaneamente non disponibile.",
         ) from None
+
+
+@router.get(
+    "/reports/summary-pdf",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_rate_limit)],
+    responses={
+        200: {
+            "content": {"application/pdf": {}},
+            "description": "Report clinico PDF multi-mensile per il medico curante o diabetologo",
+        }
+    },
+)
+async def export_summary_pdf(
+    user: CurrentUserDep,
+    user_db: UserDbDep,
+    months: Annotated[int, Query(ge=2, le=4, description="Numero di mesi da includere (2, 3 o 4)")] = 3,
+) -> Response:
+    """Genera ed esporta il report clinico multi-mensile in PDF per il medico.
+
+    Include grafici settimanali aggregati di glicemia e pressione con note fuori target,
+    diario pasti e attività registrate, ultimi 3 esami ematochimici per profilo e
+    sintesi degli ultimi referti differenziati per tipologia di visita.
+    Nessun dato transita verso Vertex AI (generazione deterministica in RAM).
+    """
+    try:
+        pdf_bytes = await generate_patient_summary_pdf(user_db=user_db, months=months)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
+    except Exception as exc:
+        logger.error("export_summary_pdf user={} errore generazione exc={}", user.id, type(exc).__name__)
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Impossibile generare il report PDF riepilogativo. Riprova più tardi.",
+        ) from None
+
+    today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    filename = f"Report_Clinico_{months}M_{today_str}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

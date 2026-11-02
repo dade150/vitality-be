@@ -122,3 +122,25 @@ def test_reject_oversized_attachment():
             mime_type="image/jpeg",
             max_bytes=1000,
         )
+
+
+def test_strip_png_exif_and_text_metadata():
+    # Inseriamo un chunk eXIf e un chunk tEXt contenenti GPS e nome paziente prima di IEND
+    ihdr_and_idat = MINIMAL_PNG[:-12]
+    iend = MINIMAL_PNG[-12:]
+    exif_payload = b"Exif\x00\x00GPS_SECRET_PNG_45_999"
+    exif_chunk = len(exif_payload).to_bytes(4, "big") + b"eXIf" + exif_payload + b"\x00\x00\x00\x00"
+    text_payload = b"Author\x00Mario Rossi CF RSSMRA70A01H501U"
+    text_chunk = len(text_payload).to_bytes(4, "big") + b"tEXt" + text_payload + b"\x00\x00\x00\x00"
+    png_with_meta = ihdr_and_idat + exif_chunk + text_chunk + iend
+
+    res = process_and_sanitize_attachment(
+        data_base64=base64.b64encode(png_with_meta).decode(),
+        mime_type="image/png",
+        kind="medical_report",
+    )
+    assert res.exif_stripped is True
+    assert b"GPS_SECRET_PNG_45_999" not in res.clean_bytes
+    assert b"RSSMRA70A01H501U" not in res.clean_bytes
+    assert res.clean_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+

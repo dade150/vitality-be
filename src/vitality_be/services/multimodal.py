@@ -152,25 +152,75 @@ def _strip_jpeg_exif(data: bytes) -> bytes:
     return bytes(out) if len(out) > 4 else data
 
 
+def _strip_png_metadata(data: bytes) -> bytes:
+    """Rimuove i chunk metadati (eXIf, tEXt, zTXt, iTXt, tIME) da un file PNG in puro Python."""
+    if len(data) < 8 or not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return data
+
+    out = bytearray(data[:8])
+    pos = 8
+    data_len = len(data)
+    metadata_chunks = {b"eXIf", b"tEXt", b"zTXt", b"iTXt", b"tIME"}
+
+    while pos + 8 <= data_len:
+        length = int.from_bytes(data[pos : pos + 4], "big")
+        chunk_type = data[pos + 4 : pos + 8]
+        chunk_end = pos + 12 + length
+        if chunk_end > data_len:
+            return data
+        if chunk_type not in metadata_chunks:
+            out.extend(data[pos:chunk_end])
+        pos = chunk_end
+        if chunk_type == b"IEND":
+            break
+
+    return bytes(out) if len(out) > 8 else data
+
+
+def _strip_webp_metadata(data: bytes) -> bytes:
+    """Rimuove i chunk EXIF e XMP da un contenitore RIFF/WEBP in puro Python."""
+    if len(data) < 12 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return data
+
+    out = bytearray(b"RIFF\x00\x00\x00\x00WEBP")
+    pos = 12
+    data_len = len(data)
+    metadata_chunks = {b"EXIF", b"XMP "}
+
+    while pos + 8 <= data_len:
+        fourcc = data[pos : pos + 4]
+        chunk_size = int.from_bytes(data[pos + 4 : pos + 8], "little")
+        padded_size = chunk_size + (chunk_size & 1)
+        chunk_end = pos + 8 + padded_size
+        if chunk_end > data_len:
+            return data
+        if fourcc not in metadata_chunks:
+            out.extend(data[pos:chunk_end])
+        pos = chunk_end
+
+    if len(out) <= 12:
+        return data
+
+    riff_size = len(out) - 8
+    out[4:8] = riff_size.to_bytes(4, "little")
+    return bytes(out)
+
+
 def _sanitize_image_metadata(data: bytes, mime_type: str) -> tuple[bytes, bool]:
-    """Sanitizza i metadati privacy da un'immagine in memoria."""
+    """Sanitizza i metadati privacy (EXIF/GPS/XMP/tEXt) da un'immagine in memoria."""
     if mime_type == "image/jpeg":
         clean = _strip_jpeg_exif(data)
         return clean, True
 
-    # Per PNG e WebP proviamo a usare PIL se disponibile, altrimenti validiamo la struttura
-    try:
-        from PIL import Image
+    if mime_type == "image/png":
+        clean = _strip_png_metadata(data)
+        return clean, True
 
-        img = Image.open(io.BytesIO(data))
-        # Crea una nuova immagine pulita senza EXIF/metadati
-        clean_buf = io.BytesIO()
-        format_name = "PNG" if mime_type == "image/png" else "WEBP"
-        img.save(clean_buf, format=format_name)
-        return clean_buf.getvalue(), True
-    except Exception:
-        # Fallback sicuro: se PIL non è presente, i dati grezzi PNG/WebP vengono accettati
-        return data, False
+    if mime_type == "image/webp":
+        clean = _strip_webp_metadata(data)
+        return clean, True
+
+    return data, False
 
 
 def _check_pdf_safety(data: bytes) -> None:

@@ -22,3 +22,8 @@ def get_chat_system_prompt() -> str:
 
 def get_extraction_system_prompt() -> str:
     return load_prompt("extraction_system.md")
+
+
+def get_guardrails_system_prompt() -> str:
+    return load_prompt("guardrails_system.md")
+

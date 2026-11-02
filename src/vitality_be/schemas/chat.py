@@ -118,6 +118,14 @@ class ChatResponse(BaseModel):
     user_message_id: int | None = None
     assistant_message_id: int | None = None
     attachment_info: AttachmentInfoOut | None = None
+    is_emergency: bool = False
+    guardrail_category: Literal[
+        "in_topic",
+        "off_topic",
+        "emergency",
+        "jailbreak_blocked",
+        "prescription_redirect",
+    ] | None = None
 
 
 class ChatSessionOut(BaseModel):
@@ -138,6 +146,14 @@ class ChatMessageOut(BaseModel):
     created_at: datetime
     attachment_info: AttachmentInfoOut | None = None
     proposed_entries: list[ProposedEntry] = Field(default_factory=list)
+    is_emergency: bool = False
+    guardrail_category: Literal[
+        "in_topic",
+        "off_topic",
+        "emergency",
+        "jailbreak_blocked",
+        "prescription_redirect",
+    ] | None = None
 
 
 class ChatSessionDetailResponse(BaseModel):

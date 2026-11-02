@@ -14,6 +14,18 @@ from vitality_be.llm.prompts import get_chat_system_prompt
 from vitality_be.schemas.chat import ChatMessageIn
 from vitality_be.schemas.extraction import ProposedEntry
 from vitality_be.services.extractor import extract_clinical_proposals, extract_from_report
+from vitality_be.services.guardrails import (
+    EMERGENCY_REPLY_GENERAL,
+    EMERGENCY_REPLY_HYPO,
+    JAILBREAK_REPLY,
+    OFF_TOPIC_REPLY,
+    PRESCRIPTION_DISCLAIMER,
+    GuardrailCategory,
+    check_and_sanitize_output,
+    check_emergency_input,
+    check_jailbreak_input,
+    classify_user_input,
+)
 from vitality_be.services.multimodal import AttachmentKind, inspect_pdf_in_ram
 from vitality_be.services.patient_context import (
     PatientContextResult,
@@ -22,6 +34,7 @@ from vitality_be.services.patient_context import (
     fetch_patient_context,
     mask_user_text_with_dynamic_tokens,
     rehydrate_assistant_reply,
+    scrub_free_text,
     scrub_report_text,
 )
 from vitality_be.services.retriever import (
@@ -45,6 +58,8 @@ class ChatPipelineResult:
     proposed_entries: list[ProposedEntry] = field(default_factory=list)
     tokens_used: int | None = None
     rag_chunks: list[dict[str, Any]] = field(default_factory=list)
+    is_emergency: bool = False
+    guardrail_category: GuardrailCategory | None = "in_topic"
 
 
 async def run_chat_pipeline(
@@ -59,6 +74,30 @@ async def run_chat_pipeline(
     embedder: EmbedderProvider | None = None,
 ) -> ChatPipelineResult:
     """Esegue la pipeline Dual-RAG completa con supporto multimodale ed estrazione clinica in parallelo."""
+    # --- LIVELLO 1: INPUT DETERMINISTICO (< 1 ms, 0 ms LLM) ---
+    emer_match = check_emergency_input(user_message)
+    if emer_match:
+        logger.info("guardrails L1 emergency triggered kind={}", emer_match.trigger_kind)
+        return ChatPipelineResult(
+            reply=emer_match.reply,
+            proposed_entries=[],
+            tokens_used=None,
+            rag_chunks=[],
+            is_emergency=True,
+            guardrail_category="emergency",
+        )
+
+    if check_jailbreak_input(user_message):
+        logger.info("guardrails L1 jailbreak blocked")
+        return ChatPipelineResult(
+            reply=JAILBREAK_REPLY,
+            proposed_entries=[],
+            tokens_used=None,
+            rag_chunks=[],
+            is_emergency=False,
+            guardrail_category="jailbreak_blocked",
+        )
+
     history: list[ChatMessage] = list(history_messages) if history_messages else []
 
     # Step 1 (Ispezione PDF in RAM): se PDF nativo con testo, estrae in RAM e azzera media_bytes (zero rete/costi)
@@ -92,46 +131,85 @@ async def run_chat_pipeline(
     chunks: list[RetrievedChunk] = []
     patient_context_xml = ""
 
-    # --- PIPELINE CONVERSAZIONALE (DUAL-RAG CON PATIENT REPORTS RETRIEVAL) ---
+    # --- LIVELLO 2 + DUAL-RAG + PATIENT CONTEXT IN PARALLELO (asyncio.gather) ---
+    scrubbed_query_for_classifier = scrub_free_text(user_message)
+    has_attachment_flag = bool(actual_media_bytes or extracted_pdf_text)
+    classify_task = classify_user_input(
+        llm,
+        scrubbed_query_for_classifier,
+        has_attachment=has_attachment_flag,
+    )
+
     if user_db is not None:
-        last_user_query = user_message or "referti e salute"
-        if embedder is not None:
+        last_user_query = scrub_free_text(user_message) if user_message else "referti e salute"
+
+        async def _fetch_rag():
+            if embedder is None:
+                return [], []
             try:
                 query_vector = await embedder.embed_query(last_user_query)
             except Exception:
                 query_vector = None
 
             if query_vector is not None:
-                chunks_res, reports_res, patient_ctx = await asyncio.gather(
+                chunks_res, reports_res = await asyncio.gather(
                     retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder, query_vector=query_vector),
                     retrieve_patient_reports(user_db=user_db, query_vector=query_vector, query_text=last_user_query),
-                    fetch_patient_context(user_db),
                 )
-                chunks = chunks_res
-                patient_context_xml = patient_ctx.context_xml
-                if reports_res:
-                    rep_lines = [
-                        f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
-                        f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
-                        for r in reports_res
-                    ]
-                    patient_context_xml = (
-                        patient_context_xml
-                        + "\n\n[Referti Storici Pertinenti Recuperati]\n"
-                        + "\n".join(rep_lines)
-                    )
-            else:
-                chunks, patient_ctx = await asyncio.gather(
-                    retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder),
-                    fetch_patient_context(user_db),
-                )
-                patient_context_xml = patient_ctx.context_xml
-        else:
-            patient_ctx: PatientContextResult = await fetch_patient_context(user_db)
-            patient_context_xml = patient_ctx.context_xml
+                return chunks_res, reports_res
+            chunks_res = await retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder)
+            return chunks_res, []
 
+        classification, (chunks, reports_res), patient_ctx = await asyncio.gather(
+            classify_task,
+            _fetch_rag(),
+            fetch_patient_context(user_db),
+        )
+        patient_context_xml = patient_ctx.context_xml
         masking_map = patient_ctx.masking_map
         active_therapies = patient_ctx.active_therapies
+
+        if reports_res:
+            rep_lines = [
+                f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
+                f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
+                for r in reports_res
+            ]
+            patient_context_xml = (
+                patient_context_xml
+                + "\n\n[Referti Storici Pertinenti Recuperati]\n"
+                + "\n".join(rep_lines)
+            )
+    else:
+        classification = await classify_task
+
+    # Valutazione Guardrail Livello 2: Emergenza Acuta Sfumata
+    if classification.emergency_risk:
+        logger.info("guardrails L2 emergency risk triggered")
+        return ChatPipelineResult(
+            reply=EMERGENCY_REPLY_GENERAL,
+            proposed_entries=[],
+            tokens_used=None,
+            rag_chunks=[],
+            is_emergency=True,
+            guardrail_category="emergency",
+        )
+
+    # Valutazione Guardrail Livello 2: Richiesta Off-Topic
+    if not classification.in_topic:
+        logger.info("guardrails L2 off-topic request blocked intent={}", classification.intent)
+        return ChatPipelineResult(
+            reply=OFF_TOPIC_REPLY,
+            proposed_entries=[],
+            tokens_used=None,
+            rag_chunks=[],
+            is_emergency=False,
+            guardrail_category="off_topic",
+        )
+
+    guardrail_category: GuardrailCategory = "in_topic"
+    if classification.is_medical_prescription_request:
+        guardrail_category = "prescription_redirect"
 
     # De-identificazione sui turni utente prima dell'invio al provider
     scrubbed_history: list[ChatMessage] = []
@@ -151,6 +229,19 @@ async def run_chat_pipeline(
                 patient_context_xml=patient_context_xml,
                 clinical_chunks=chunks,
             ),
+        )
+
+    # Se c'è richiesta di prescrizione, iniettiamo la direttiva clinica nel prompt
+    if classification.is_medical_prescription_request:
+        prescription_directive = (
+            "\n\n[DIRETTIVA DI SICUREZZA CLINICA: L'utente sta chiedendo un'indicazione posologica, "
+            "prescrittiva o una modifica della terapia. NON suggerire dosaggi numerici o cambi di farmaco; "
+            "spiega i principi educativi generali e raccomanda di concordare qualsiasi decisione "
+            "con il proprio medico curante o diabetologo {{MEDICO}}.]"
+        )
+        chat_history[-1] = ChatMessage(
+            role="user",
+            content=chat_history[-1].content + prescription_directive,
         )
 
     # Preparazione task paralleli: generazione risposta + estrazione proposte
@@ -181,6 +272,10 @@ async def run_chat_pipeline(
         return LLMChatResult(text=text, tokens_used=None)
 
     async def _extract() -> list[ProposedEntry]:
+        # Ottimizzazione Latenza: se non ci sono dati loggabili e non ci sono allegati, risparmiamo la chiamata LLM
+        if not classification.has_loggable_data and not (actual_media_bytes or extracted_pdf_text):
+            return []
+
         # Se l'allegato è un referto clinico o un PDF, prova anche l'estrazione dedicata per referti
         is_report = (
             attachment_kind in ("medical_report", "pdf_document")
@@ -210,46 +305,8 @@ async def run_chat_pipeline(
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
-            if rep and rep.proposed_entries:
+            if rep and rep.is_medical_report and rep.proposed_entries:
                 res_proposals.extend(rep.proposed_entries)
-
-            # Se il referto contiene sintesi o valori ed abbiamo user_db ed embedder, salviamo e vettorizziamo
-            if rep and rep.is_medical_report and (rep.clean_summary or rep.proposed_entries) and user_db is not None:
-                try:
-                    rep_title = f"Referto {rep.report_type.replace('_', ' ').title()}"
-                    text_for_embed = f"{rep.clean_summary}\n\n{rep.scrubbed_content[:3000]}".strip()
-                    vector = None
-                    if embedder is not None and text_for_embed and hasattr(embedder, "embed_document"):
-                        vector = await embedder.embed_document(title=rep_title, text=text_for_embed)
-
-                    row_data: dict[str, Any] = {
-                        "source_name": rep_title,
-                        "report_type": rep.report_type,
-                        "report_at": rep.report_at,
-                        "content": rep.scrubbed_content or rep.clean_summary,
-                        "clean_summary": rep.clean_summary,
-                        "extracted_params": {
-                            p.data.get("metric_type", "MISURA"): p.data.get("metric_value")
-                            for p in rep.proposed_entries
-                            if p.target_table == "diabetes_data"
-                        },
-                    }
-                    if vector is not None:
-                        row_data["embedding"] = vector_literal(vector)
-
-                    inserted = await asyncio.to_thread(
-                        lambda: user_db.table("patient_reports").insert(row_data).execute()
-                    )
-                    rows = getattr(inserted, "data", None)
-                    if rows and isinstance(rows, list) and len(rows) > 0:
-                        rep_id = rows[0].get("id")
-                        if rep_id:
-                            for p in rep.proposed_entries:
-                                if p.target_table == "diabetes_data":
-                                    p.data["source_report_id"] = rep_id
-                except Exception as save_exc:
-                    logger.debug("Auto-archiviazione referto chat ignorata exc={}", type(save_exc).__name__)
-
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
@@ -258,6 +315,13 @@ async def run_chat_pipeline(
     try:
         llm_result, proposals = await asyncio.gather(_generate_llm(), _extract())
         rehydrated = rehydrate_assistant_reply(llm_result.text, masking_map)
+
+        # --- LIVELLO 3: OUTPUT SANITIZATION GUARDRAIL ---
+        out_check = check_and_sanitize_output(rehydrated)
+        if out_check.triggered:
+            logger.warning("guardrails L3 triggered violation={}", out_check.violation_type)
+            rehydrated = out_check.sanitized_text
+            guardrail_category = "prescription_redirect"
 
         chunks_dicts = [
             {
@@ -275,10 +339,18 @@ async def run_chat_pipeline(
             proposed_entries=proposals,
             tokens_used=llm_result.tokens_used,
             rag_chunks=chunks_dicts,
+            is_emergency=False,
+            guardrail_category=guardrail_category,
         )
     except LLMBlocked as exc:
         logger.warning("Risposta bloccata dai filtri code={}", exc.code)
-        return ChatPipelineResult(reply=BLOCKED_REPLY, proposed_entries=[], tokens_used=None)
+        return ChatPipelineResult(
+            reply=BLOCKED_REPLY,
+            proposed_entries=[],
+            tokens_used=None,
+            is_emergency=False,
+            guardrail_category="in_topic",
+        )
 
 
 async def stream_chat_pipeline(
@@ -298,6 +370,40 @@ async def stream_chat_pipeline(
     - {'type': 'delta', 'text': str} durante la generazione (con safe buffering dei placeholder reversibili)
     - {'type': 'done', 'result': ChatPipelineResult} al termine di testo ed estrazione clinica
     """
+    # --- LIVELLO 1: INPUT DETERMINISTICO (< 1 ms, 0 ms LLM) ---
+    emer_match = check_emergency_input(user_message)
+    if emer_match:
+        logger.info("guardrails L1 emergency triggered (stream) kind={}", emer_match.trigger_kind)
+        yield {"type": "delta", "text": emer_match.reply}
+        yield {
+            "type": "done",
+            "result": ChatPipelineResult(
+                reply=emer_match.reply,
+                proposed_entries=[],
+                tokens_used=None,
+                rag_chunks=[],
+                is_emergency=True,
+                guardrail_category="emergency",
+            ),
+        }
+        return
+
+    if check_jailbreak_input(user_message):
+        logger.info("guardrails L1 jailbreak blocked (stream)")
+        yield {"type": "delta", "text": JAILBREAK_REPLY}
+        yield {
+            "type": "done",
+            "result": ChatPipelineResult(
+                reply=JAILBREAK_REPLY,
+                proposed_entries=[],
+                tokens_used=None,
+                rag_chunks=[],
+                is_emergency=False,
+                guardrail_category="jailbreak_blocked",
+            ),
+        }
+        return
+
     history: list[ChatMessage] = list(history_messages) if history_messages else []
 
     actual_media_bytes = media_bytes
@@ -329,45 +435,95 @@ async def stream_chat_pipeline(
     chunks: list[RetrievedChunk] = []
     patient_context_xml = ""
 
+    # --- LIVELLO 2 + DUAL-RAG + PATIENT CONTEXT IN PARALLELO (asyncio.gather) ---
+    scrubbed_query_for_classifier = scrub_free_text(user_message)
+    has_attachment_flag = bool(actual_media_bytes or extracted_pdf_text)
+    classify_task = classify_user_input(
+        llm,
+        scrubbed_query_for_classifier,
+        has_attachment=has_attachment_flag,
+    )
+
     if user_db is not None:
-        last_user_query = user_message or "referti e salute"
-        if embedder is not None:
+        last_user_query = scrub_free_text(user_message) if user_message else "referti e salute"
+
+        async def _fetch_rag():
+            if embedder is None:
+                return [], []
             try:
                 query_vector = await embedder.embed_query(last_user_query)
             except Exception:
                 query_vector = None
 
             if query_vector is not None:
-                chunks_res, reports_res, patient_ctx = await asyncio.gather(
+                chunks_res, reports_res = await asyncio.gather(
                     retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder, query_vector=query_vector),
                     retrieve_patient_reports(user_db=user_db, query_vector=query_vector, query_text=last_user_query),
-                    fetch_patient_context(user_db),
                 )
-                chunks = chunks_res
-                patient_context_xml = patient_ctx.context_xml
-                if reports_res:
-                    rep_lines = [
-                        f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
-                        f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
-                        for r in reports_res
-                    ]
-                    patient_context_xml = (
-                        patient_context_xml
-                        + "\n\n[Referti Storici Pertinenti Recuperati]\n"
-                        + "\n".join(rep_lines)
-                    )
-            else:
-                chunks, patient_ctx = await asyncio.gather(
-                    retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder),
-                    fetch_patient_context(user_db),
-                )
-                patient_context_xml = patient_ctx.context_xml
-        else:
-            patient_ctx: PatientContextResult = await fetch_patient_context(user_db)
-            patient_context_xml = patient_ctx.context_xml
+                return chunks_res, reports_res
+            chunks_res = await retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder)
+            return chunks_res, []
 
+        classification, (chunks, reports_res), patient_ctx = await asyncio.gather(
+            classify_task,
+            _fetch_rag(),
+            fetch_patient_context(user_db),
+        )
+        patient_context_xml = patient_ctx.context_xml
         masking_map = patient_ctx.masking_map
         active_therapies = patient_ctx.active_therapies
+
+        if reports_res:
+            rep_lines = [
+                f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
+                f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
+                for r in reports_res
+            ]
+            patient_context_xml = (
+                patient_context_xml
+                + "\n\n[Referti Storici Pertinenti Recuperati]\n"
+                + "\n".join(rep_lines)
+            )
+    else:
+        classification = await classify_task
+
+    # Valutazione Guardrail Livello 2: Rischio Emergenza Acuta
+    if classification.emergency_risk:
+        logger.info("guardrails L2 emergency risk triggered (stream)")
+        yield {"type": "delta", "text": EMERGENCY_REPLY_GENERAL}
+        yield {
+            "type": "done",
+            "result": ChatPipelineResult(
+                reply=EMERGENCY_REPLY_GENERAL,
+                proposed_entries=[],
+                tokens_used=None,
+                rag_chunks=[],
+                is_emergency=True,
+                guardrail_category="emergency",
+            ),
+        }
+        return
+
+    # Valutazione Guardrail Livello 2: Richiesta Off-Topic
+    if not classification.in_topic:
+        logger.info("guardrails L2 off-topic request blocked (stream) intent={}", classification.intent)
+        yield {"type": "delta", "text": OFF_TOPIC_REPLY}
+        yield {
+            "type": "done",
+            "result": ChatPipelineResult(
+                reply=OFF_TOPIC_REPLY,
+                proposed_entries=[],
+                tokens_used=None,
+                rag_chunks=[],
+                is_emergency=False,
+                guardrail_category="off_topic",
+            ),
+        }
+        return
+
+    guardrail_category: GuardrailCategory = "in_topic"
+    if classification.is_medical_prescription_request:
+        guardrail_category = "prescription_redirect"
 
     scrubbed_history: list[ChatMessage] = []
     for m in history:
@@ -386,6 +542,19 @@ async def stream_chat_pipeline(
                 patient_context_xml=patient_context_xml,
                 clinical_chunks=chunks,
             ),
+        )
+
+    # Iniezione direttiva clinica se c'è richiesta di prescrizione
+    if classification.is_medical_prescription_request:
+        prescription_directive = (
+            "\n\n[DIRETTIVA DI SICUREZZA CLINICA: L'utente sta chiedendo un'indicazione posologica, "
+            "prescrittiva o una modifica della terapia. NON suggerire dosaggi numerici o cambi di farmaco; "
+            "spiega i principi educativi generali e raccomanda di concordare qualsiasi decisione "
+            "con il proprio medico curante o diabetologo {{MEDICO}}.]"
+        )
+        chat_history[-1] = ChatMessage(
+            role="user",
+            content=chat_history[-1].content + prescription_directive,
         )
 
     async def _extract() -> list[ProposedEntry]:
@@ -417,52 +586,23 @@ async def stream_chat_pipeline(
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
-            if rep and rep.proposed_entries:
+            if rep and rep.is_medical_report and rep.proposed_entries:
                 res_proposals.extend(rep.proposed_entries)
-
-            if rep and rep.is_medical_report and (rep.clean_summary or rep.proposed_entries) and user_db is not None:
-                try:
-                    rep_title = f"Referto {rep.report_type.replace('_', ' ').title()}"
-                    text_for_embed = f"{rep.clean_summary}\n\n{rep.scrubbed_content[:3000]}".strip()
-                    vector = None
-                    if embedder is not None and text_for_embed and hasattr(embedder, "embed_document"):
-                        vector = await embedder.embed_document(title=rep_title, text=text_for_embed)
-
-                    row_data: dict[str, Any] = {
-                        "source_name": rep_title,
-                        "report_type": rep.report_type,
-                        "report_at": rep.report_at,
-                        "content": rep.scrubbed_content or rep.clean_summary,
-                        "clean_summary": rep.clean_summary,
-                        "extracted_params": {
-                            p.data.get("metric_type", "MISURA"): p.data.get("metric_value")
-                            for p in rep.proposed_entries
-                            if p.target_table == "diabetes_data"
-                        },
-                    }
-                    if vector is not None:
-                        row_data["embedding"] = vector_literal(vector)
-
-                    inserted = await asyncio.to_thread(
-                        lambda: user_db.table("patient_reports").insert(row_data).execute()
-                    )
-                    rows = getattr(inserted, "data", None)
-                    if rows and isinstance(rows, list) and len(rows) > 0:
-                        rep_id = rows[0].get("id")
-                        if rep_id:
-                            for p in rep.proposed_entries:
-                                if p.target_table == "diabetes_data":
-                                    p.data["source_report_id"] = rep_id
-                except Exception as save_exc:
-                    logger.debug("Auto-archiviazione referto stream ignorata exc={}", type(save_exc).__name__)
-
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
         return res_proposals
 
-    # Avvia l'estrazione HITL in background contemporaneamente allo stream
-    extract_task = asyncio.create_task(_extract())
+    # Ottimizzazione Latenza: avvia l'estrazione HITL in background SOLO se ci sono dati loggabili o allegati
+    extract_task = None
+    should_extract = classification.has_loggable_data or bool(actual_media_bytes or extracted_pdf_text)
+    if should_extract:
+        try:
+            asyncio.get_running_loop()
+            extract_task = asyncio.create_task(_extract())
+        except RuntimeError:
+            extract_task = None
+
     accumulated_raw: list[str] = []
     buffer = ""
 
@@ -471,8 +611,8 @@ async def stream_chat_pipeline(
             raw_stream = llm.stream_chat(
                 chat_history,
                 system=get_chat_system_prompt(),
-                media_bytes=media_bytes,
-                media_mime_type=media_mime_type,
+                media_bytes=actual_media_bytes,
+                media_mime_type=actual_media_mime,
             )
         else:
             # Fallback se il provider non ha stream_chat
@@ -480,8 +620,8 @@ async def stream_chat_pipeline(
                 res = await llm.chat(
                     chat_history,
                     system=get_chat_system_prompt(),
-                    media_bytes=media_bytes,
-                    media_mime_type=media_mime_type,
+                    media_bytes=actual_media_bytes,
+                    media_mime_type=actual_media_mime,
                 )
                 yield res
 
@@ -492,7 +632,6 @@ async def stream_chat_pipeline(
             buffer += chunk
 
             # Buffer di sicurezza anti-spezzamento placeholder (es: '{{NO' ... 'ME}}')
-            # Se nel buffer c'è un '{{' senza un '}}', trattieni la porzione finale
             if "{{" in buffer and "}}" not in buffer[buffer.rfind("{{") :]:
                 safe_pos = buffer.rfind("{{")
                 ready_to_emit = buffer[:safe_pos]
@@ -514,21 +653,39 @@ async def stream_chat_pipeline(
 
     except LLMBlocked as exc:
         logger.warning("Risposta bloccata dai filtri durante stream code={}", exc.code)
-        if not extract_task.done():
+        if extract_task and not extract_task.done():
             extract_task.cancel()
         yield {"type": "delta", "text": BLOCKED_REPLY}
         yield {
             "type": "done",
-            "result": ChatPipelineResult(reply=BLOCKED_REPLY, proposed_entries=[], tokens_used=None),
+            "result": ChatPipelineResult(
+                reply=BLOCKED_REPLY,
+                proposed_entries=[],
+                tokens_used=None,
+                is_emergency=False,
+                guardrail_category="in_topic",
+            ),
         }
         return
 
-    # Attendi l'estrazione HITL
-    try:
-        proposals = await extract_task
-    except Exception as exc:
-        logger.warning("Estrazione HITL fallita durante streaming exc={}", type(exc).__name__)
+    # Attendi l'estrazione HITL se era stata avviata
+    if extract_task is not None:
+        try:
+            proposals = await extract_task
+        except Exception as exc:
+            logger.warning("Estrazione HITL fallita durante streaming exc={}", type(exc).__name__)
+            proposals = []
+    else:
         proposals = []
+
+    # --- LIVELLO 3: OUTPUT SANITIZATION GUARDRAIL ---
+    out_check = check_and_sanitize_output(rehydrated_full)
+    if out_check.triggered:
+        logger.warning("guardrails L3 triggered in stream violation={}", out_check.violation_type)
+        if PRESCRIPTION_DISCLAIMER in out_check.sanitized_text and PRESCRIPTION_DISCLAIMER not in rehydrated_full:
+            yield {"type": "delta", "text": PRESCRIPTION_DISCLAIMER}
+        rehydrated_full = out_check.sanitized_text
+        guardrail_category = "prescription_redirect"
 
     chunks_dicts = [
         {
@@ -546,6 +703,8 @@ async def stream_chat_pipeline(
         proposed_entries=proposals,
         tokens_used=None,
         rag_chunks=chunks_dicts,
+        is_emergency=False,
+        guardrail_category=guardrail_category,
     )
     yield {"type": "done", "result": pipeline_res}
 

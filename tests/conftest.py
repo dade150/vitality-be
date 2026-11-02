@@ -13,6 +13,7 @@ os.environ["LLM_PROVIDER"] = "echo"
 from vitality_be.core import limits, security  # noqa: E402
 from vitality_be.core.config import get_settings  # noqa: E402
 from vitality_be.llm.base import ChatMessage  # noqa: E402
+from vitality_be.llm.embedder import get_embedder  # noqa: E402
 from vitality_be.llm.factory import get_llm  # noqa: E402
 
 _orig_get_auth_client = security.get_auth_client
@@ -84,6 +85,7 @@ class FakeUserDb:
 def _clear_caches():
     get_settings.cache_clear()
     get_llm.cache_clear()
+    get_embedder.cache_clear()
     limits.get_rate_limiter.cache_clear()
     limits.get_gate.cache_clear()
     _orig_get_auth_client.cache_clear()

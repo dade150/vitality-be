@@ -19,11 +19,11 @@ class Settings(BaseSettings):
     # "eu" = multi-regione UE (host aiplatform.eu.rep.googleapis.com).
     # "global" è sempre rifiutato: nessuna garanzia sul luogo di elaborazione.
     gcp_location: str = "eu"
-    llm_model: str | None = None
+    llm_model: str = "gemini-3.5-flash"
     llm_timeout_s: float = 40.0  # scadenza TOTALE verso il provider (retry inclusi)
     llm_max_output_tokens: int = 2048  # i token di ragionamento Gemini 3 contano qui dentro
     llm_temperature: float = 0.3
-    llm_thinking_level: Literal["minimal", "low", "medium", "high"] = "low"
+    llm_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
 
     # --- Embedding & Retrieval Ibrido (RAG) ---
     embedding_gcp_project: str | None = None

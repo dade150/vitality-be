@@ -26,7 +26,9 @@ class RequestContextMiddleware:
                 headers += [
                     (b"x-request-id", rid.encode()),
                     (b"x-content-type-options", b"nosniff"),
+                    (b"x-frame-options", b"DENY"),
                     (b"referrer-policy", b"no-referrer"),
+                    (b"strict-transport-security", b"max-age=63072000; includeSubDomains; preload"),
                 ]
                 if is_api:
                     headers.append((b"cache-control", b"no-store"))

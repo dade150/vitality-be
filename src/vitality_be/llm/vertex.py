@@ -240,6 +240,7 @@ class VertexProvider:
         response_schema: type,
         media_bytes: bytes | None = None,
         media_mime_type: str | None = None,
+        max_output_tokens: int | None = None,
     ):
         """Esegue una chiamata Structured Output nativa a Vertex AI (JSON validato con Pydantic).
 
@@ -261,6 +262,8 @@ class VertexProvider:
 
         structured_cfg = dict(self._config_base)
         structured_cfg["temperature"] = 0.0
+        if max_output_tokens is not None:
+            structured_cfg["max_output_tokens"] = max_output_tokens
         config = types.GenerateContentConfig(
             system_instruction=system,
             response_mime_type="application/json",

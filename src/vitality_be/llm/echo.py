@@ -62,5 +62,6 @@ class EchoProvider:
         response_schema: type,
         media_bytes: bytes | None = None,
         media_mime_type: str | None = None,
+        **kwargs,
     ):
         return response_schema()

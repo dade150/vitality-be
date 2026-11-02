@@ -3,7 +3,7 @@ import json
 import time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
@@ -103,25 +103,33 @@ async def chat(
 
     if hasattr(user_db, "table"):
         try:
-            session_row = await chat_history.get_or_create_session(
-                user_db,
-                user_id=user.id,
-                session_id=session_id,
-                title_seed=body.message or "",
-                attachment_kind=attachment_kind,
-            )
-            session_id = session_row.get("id")
-
-            # Se il client ha inviato session_id (o creata nuova sessione) e non una lista legacy messages[]
             if session_id and not body.messages:
-                history_for_llm = await chat_history.load_session_messages_for_llm(
-                    user_db,
-                    session_id=session_id,
-                    limit=s.chat_history_window,
+                session_row, history_for_llm = await asyncio.gather(
+                    chat_history.get_or_create_session(
+                        user_db,
+                        user_id=user.id,
+                        session_id=session_id,
+                        title_seed=body.message or "",
+                        attachment_kind=attachment_kind,
+                    ),
+                    chat_history.load_session_messages_for_llm(
+                        user_db,
+                        session_id=session_id,
+                        limit=s.chat_history_window,
+                    ),
                 )
-            elif body.messages and len(body.messages) > 1:
-                # Modalità legacy: usa la cronologia inviata dal client (escludendo l'ultimo turno già in body.message)
-                history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+                session_id = session_row.get("id")
+            else:
+                session_row = await chat_history.get_or_create_session(
+                    user_db,
+                    user_id=user.id,
+                    session_id=session_id,
+                    title_seed=body.message or "",
+                    attachment_kind=attachment_kind,
+                )
+                session_id = session_row.get("id")
+                if body.messages and len(body.messages) > 1:
+                    history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
         except SessionNotFoundError:
             raise HTTPException(404, "Sessione di chat non trovata.") from None
         except Exception as exc:
@@ -174,17 +182,25 @@ async def chat(
             rag_chunks=pipeline_res.rag_chunks,
             proposed_entries=proposals_dicts,
             tokens_used=pipeline_res.tokens_used,
+            is_emergency=pipeline_res.is_emergency,
+            guardrail_category=pipeline_res.guardrail_category,
         )
 
     logger.info(
-        "chat user={} ok session={} proposals={} ms={}",
+        "chat user={} ok session={} proposals={} is_emergency={} guardrail={} ms={}",
         user.id,
         session_id,
         len(pipeline_res.proposed_entries),
+        pipeline_res.is_emergency,
+        pipeline_res.guardrail_category,
         int((time.monotonic() - started) * 1000),
     )
 
-    response_kwargs: dict = {"reply": pipeline_res.reply}
+    response_kwargs: dict = {
+        "reply": pipeline_res.reply,
+        "is_emergency": pipeline_res.is_emergency,
+        "guardrail_category": pipeline_res.guardrail_category,
+    }
     if pipeline_res.proposed_entries:
         response_kwargs["proposed_entries"] = pipeline_res.proposed_entries
     if session_id is not None:
@@ -255,23 +271,33 @@ async def chat_stream(
 
     if hasattr(user_db, "table"):
         try:
-            session_row = await chat_history.get_or_create_session(
-                user_db,
-                user_id=user.id,
-                session_id=session_id,
-                title_seed=body.message or "",
-                attachment_kind=attachment_kind,
-            )
-            session_id = session_row.get("id")
-
             if session_id and not body.messages:
-                history_for_llm = await chat_history.load_session_messages_for_llm(
-                    user_db,
-                    session_id=session_id,
-                    limit=s.chat_history_window,
+                session_row, history_for_llm = await asyncio.gather(
+                    chat_history.get_or_create_session(
+                        user_db,
+                        user_id=user.id,
+                        session_id=session_id,
+                        title_seed=body.message or "",
+                        attachment_kind=attachment_kind,
+                    ),
+                    chat_history.load_session_messages_for_llm(
+                        user_db,
+                        session_id=session_id,
+                        limit=s.chat_history_window,
+                    ),
                 )
-            elif body.messages and len(body.messages) > 1:
-                history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+                session_id = session_row.get("id")
+            else:
+                session_row = await chat_history.get_or_create_session(
+                    user_db,
+                    user_id=user.id,
+                    session_id=session_id,
+                    title_seed=body.message or "",
+                    attachment_kind=attachment_kind,
+                )
+                session_id = session_row.get("id")
+                if body.messages and len(body.messages) > 1:
+                    history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
         except SessionNotFoundError:
             raise HTTPException(404, "Sessione di chat non trovata.") from None
         except Exception as exc:
@@ -321,14 +347,19 @@ async def chat_stream(
                             rag_chunks=pipeline_res.rag_chunks,
                             proposed_entries=proposals_dicts,
                             tokens_used=pipeline_res.tokens_used,
+                            is_emergency=pipeline_res.is_emergency,
+                            guardrail_category=pipeline_res.guardrail_category,
                         )
 
                     done_payload = {
                         "type": "done",
+                        "reply": pipeline_res.reply,
                         "session_id": session_id,
                         "user_message_id": user_msg_id,
                         "assistant_message_id": asst_msg_id,
                         "proposed_entries": [p.model_dump() for p in pipeline_res.proposed_entries],
+                        "is_emergency": pipeline_res.is_emergency,
+                        "guardrail_category": pipeline_res.guardrail_category,
                     }
                     if attachment_out is not None:
                         done_payload["attachment_info"] = attachment_out.model_dump()
@@ -360,7 +391,11 @@ async def chat_stream(
     )
 
 
-@router.get("/chat/sessions", response_model=ChatSessionListResponse)
+@router.get(
+    "/chat/sessions",
+    response_model=ChatSessionListResponse,
+    dependencies=[Depends(enforce_rate_limit)],
+)
 async def list_sessions(
     user: CurrentUserDep,
     user_db: UserDbDep,
@@ -374,7 +409,28 @@ async def list_sessions(
     )
 
 
-@router.get("/chat/sessions/{session_id}", response_model=ChatSessionDetailResponse)
+@router.delete(
+    "/chat/sessions",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_rate_limit)],
+)
+async def delete_all_sessions(
+    user: CurrentUserDep,
+    user_db: UserDbDep,
+):
+    """Elimina l'intera cronologia conversazionale dell'utente autenticato (GDPR Art. 5.1.e & Art. 17)."""
+    if hasattr(user_db, "table"):
+        await asyncio.to_thread(
+            lambda: user_db.table("chat_session").delete().eq("user_id", user.id).execute()
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/chat/sessions/{session_id}",
+    response_model=ChatSessionDetailResponse,
+    dependencies=[Depends(enforce_rate_limit)],
+)
 async def get_session(
     session_id: int,
     user: CurrentUserDep,
@@ -399,7 +455,11 @@ async def get_session(
     )
 
 
-@router.patch("/chat/sessions/{session_id}", response_model=ChatSessionOut)
+@router.patch(
+    "/chat/sessions/{session_id}",
+    response_model=ChatSessionOut,
+    dependencies=[Depends(enforce_rate_limit)],
+)
 async def update_session_title(
     session_id: int,
     body: UpdateSessionTitleIn,
@@ -415,7 +475,11 @@ async def update_session_title(
     return ChatSessionOut(id=updated["id"], title=updated.get("title"), created_at=updated["created_at"])
 
 
-@router.delete("/chat/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/chat/sessions/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_rate_limit)],
+)
 async def delete_session(
     session_id: int,
     user: CurrentUserDep,
