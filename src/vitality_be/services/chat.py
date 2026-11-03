@@ -165,20 +165,24 @@ async def _archive_verified_chat_report(
                 lambda: user_db.table("patient_reports").insert(row_data).execute()
             )
         except Exception as ins_exc:
-            logger.warning("Insert esteso referto chat fallito ({}): fallback schema base", ins_exc)
-            fb_row: dict[str, Any] = {
-                "source_name": rep_title,
-                "report_type": "ANALISI_SANGUE",
-                "report_at": rep_at,
-                "content": scrub_txt or clean_sum or rep_title,
-            }
-            if uid:
-                fb_row["user_id"] = uid
-            if vector is not None:
-                fb_row["embedding"] = vector_literal(vector)
-            inserted = await asyncio.to_thread(
-                lambda: user_db.table("patient_reports").insert(fb_row).execute()
-            )
+            logger.warning("Insert esteso referto chat fallito ({}): tentativo senza embedding", ins_exc)
+            no_vec_row = {k: v for k, v in row_data.items() if k != "embedding"}
+            try:
+                inserted = await asyncio.to_thread(
+                    lambda: user_db.table("patient_reports").insert(no_vec_row).execute()
+                )
+            except Exception:
+                fb_row: dict[str, Any] = {
+                    "source_name": rep_title,
+                    "report_type": "ANALISI_SANGUE",
+                    "report_at": rep_at,
+                    "content": scrub_txt or clean_sum or rep_title,
+                }
+                if uid:
+                    fb_row["user_id"] = uid
+                inserted = await asyncio.to_thread(
+                    lambda: user_db.table("patient_reports").insert(fb_row).execute()
+                )
 
         rows = getattr(inserted, "data", None)
         if rows and isinstance(rows, list) and len(rows) > 0:
@@ -458,12 +462,6 @@ async def run_chat_pipeline(
                 active_therapies=active_therapies,
             )
 
-        res_proposals = await extract_clinical_proposals(
-            llm,
-            scrubbed_history,
-            masking_map=masking_map,
-            active_therapies=active_therapies,
-        )
         rep = None
         try:
             rep = await extract_from_report(
@@ -477,17 +475,37 @@ async def run_chat_pipeline(
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
-        rep_props = await _archive_verified_chat_report(
-            rep=rep,
-            user_db=user_db,
-            embedder=embedder,
-            raw_media_bytes=media_bytes,
-            raw_media_mime=media_mime_type,
-            user_id=user_id,
-            fallback_proposals=res_proposals,
-            fallback_text=extracted_pdf_text or None,
+        if rep and rep.is_medical_report and (
+            rep.proposed_entries or (rep.clean_summary or "").strip() or (rep.scrubbed_content or "").strip()
+        ):
+            return await _archive_verified_chat_report(
+                rep=rep,
+                user_db=user_db,
+                embedder=embedder,
+                raw_media_bytes=media_bytes,
+                raw_media_mime=media_mime_type,
+                user_id=user_id,
+            )
+
+        res_proposals = await extract_clinical_proposals(
+            llm,
+            scrubbed_history,
+            masking_map=masking_map,
+            active_therapies=active_therapies,
         )
-        return _merge_unique_proposals(res_proposals, rep_props)
+        if media_mime_type == "application/pdf" or attachment_kind == "medical_report":
+            rep_props = await _archive_verified_chat_report(
+                rep=rep,
+                user_db=user_db,
+                embedder=embedder,
+                raw_media_bytes=media_bytes,
+                raw_media_mime=media_mime_type,
+                user_id=user_id,
+                fallback_proposals=res_proposals,
+                fallback_text=extracted_pdf_text or None,
+            )
+            return _merge_unique_proposals(res_proposals, rep_props)
+        return res_proposals
 
     try:
         llm_result, proposals = await asyncio.gather(_generate_llm(), _extract())
@@ -749,12 +767,6 @@ async def stream_chat_pipeline(
                 active_therapies=active_therapies,
             )
 
-        res_proposals = await extract_clinical_proposals(
-            llm,
-            scrubbed_history,
-            masking_map=masking_map,
-            active_therapies=active_therapies,
-        )
         rep = None
         try:
             rep = await extract_from_report(
@@ -768,17 +780,37 @@ async def stream_chat_pipeline(
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
-        rep_props = await _archive_verified_chat_report(
-            rep=rep,
-            user_db=user_db,
-            embedder=embedder,
-            raw_media_bytes=media_bytes,
-            raw_media_mime=media_mime_type,
-            user_id=user_id,
-            fallback_proposals=res_proposals,
-            fallback_text=extracted_pdf_text or None,
+        if rep and rep.is_medical_report and (
+            rep.proposed_entries or (rep.clean_summary or "").strip() or (rep.scrubbed_content or "").strip()
+        ):
+            return await _archive_verified_chat_report(
+                rep=rep,
+                user_db=user_db,
+                embedder=embedder,
+                raw_media_bytes=media_bytes,
+                raw_media_mime=media_mime_type,
+                user_id=user_id,
+            )
+
+        res_proposals = await extract_clinical_proposals(
+            llm,
+            scrubbed_history,
+            masking_map=masking_map,
+            active_therapies=active_therapies,
         )
-        return _merge_unique_proposals(res_proposals, rep_props)
+        if media_mime_type == "application/pdf" or attachment_kind == "medical_report":
+            rep_props = await _archive_verified_chat_report(
+                rep=rep,
+                user_db=user_db,
+                embedder=embedder,
+                raw_media_bytes=media_bytes,
+                raw_media_mime=media_mime_type,
+                user_id=user_id,
+                fallback_proposals=res_proposals,
+                fallback_text=extracted_pdf_text or None,
+            )
+            return _merge_unique_proposals(res_proposals, rep_props)
+        return res_proposals
 
     # Ottimizzazione Latenza: avvia l'estrazione HITL in background SOLO se ci sono dati loggabili o allegati
     extract_task = None

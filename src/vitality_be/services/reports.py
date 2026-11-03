@@ -259,30 +259,39 @@ async def process_and_ingest_report(
                     report_id_str = str(real_id)
         except Exception as db_exc:
             logger.warning(
-                "Salvataggio esteso referto fallito ({}): tentativo fallback schema base",
+                "Salvataggio esteso referto fallito ({}): tentativo senza embedding",
                 db_exc,
             )
-            fallback_payload: dict[str, Any] = {
-                "source_name": clean_title,
-                "report_type": "ANALISI_SANGUE",
-                "report_at": report_at,
-                "content": extraction.scrubbed_content or extraction.clean_summary or clean_title,
-            }
-            if resolved_uid:
-                fallback_payload["user_id"] = resolved_uid
-            if vector is not None:
-                fallback_payload["embedding"] = vector_literal(vector)
+            no_vec_payload = {k: v for k, v in row_payload.items() if k != "embedding"}
             try:
                 insert_resp = await _run_sync_or_thread(
-                    lambda: user_db.table("patient_reports").insert(fallback_payload).execute()
+                    lambda: user_db.table("patient_reports").insert(no_vec_payload).execute()
                 )
                 inserted_rows = getattr(insert_resp, "data", None)
                 if inserted_rows and isinstance(inserted_rows, list) and len(inserted_rows) > 0:
                     real_id = inserted_rows[0].get("id")
                     if real_id is not None:
                         report_id_str = str(real_id)
-            except Exception as fb_exc:
-                logger.error("Salvataggio referto su DB fallito anche in fallback exc={}: {}", type(fb_exc).__name__, fb_exc)
+            except Exception:
+                fallback_payload: dict[str, Any] = {
+                    "source_name": clean_title,
+                    "report_type": "ANALISI_SANGUE",
+                    "report_at": report_at,
+                    "content": extraction.scrubbed_content or extraction.clean_summary or clean_title,
+                }
+                if resolved_uid:
+                    fallback_payload["user_id"] = resolved_uid
+                try:
+                    insert_resp = await _run_sync_or_thread(
+                        lambda: user_db.table("patient_reports").insert(fallback_payload).execute()
+                    )
+                    inserted_rows = getattr(insert_resp, "data", None)
+                    if inserted_rows and isinstance(inserted_rows, list) and len(inserted_rows) > 0:
+                        real_id = inserted_rows[0].get("id")
+                        if real_id is not None:
+                            report_id_str = str(real_id)
+                except Exception as fb_exc:
+                    logger.error("Salvataggio referto su DB fallito anche in fallback exc={}: {}", type(fb_exc).__name__, fb_exc)
 
     # Collega source_report_id nelle proposte emesse
     resolved_report_id_int: int | None = None

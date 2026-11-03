@@ -589,7 +589,11 @@ async def extract_from_report(
 
     prompt_parts = [
         f"<timestamp_corrente>\n{human_now}\n</timestamp_corrente>",
-        "Estrai dal referto medico tutti i parametri clinici ed ematochimici "
+        "Verifica innanzitutto se il documento o l'immagine fornita è un vero referto medico "
+        "(analisi del sangue/urine, referto di visita specialistica, esame strumentale): "
+        "imposta 'is_medical_report' a true SOLO se è un referto medico; impostalo a false se è la foto di un pasto/cibo, "
+        "di un glucometro, di una confezione di farmaci o di un documento non clinico.\n"
+        "Se è un referto medico, estrai tutti i parametri clinici ed ematochimici "
         "(GLICEMIA, HbA1c, Colesterolo Totale, HDL, LDL, Trigliceridi, eGFR, UACR, PRESSIONE) "
         "e genera una sintesi clinica oggettiva ('clean_summary') completamente priva di dati identificativi "
         "(non includere MAI nomi di pazienti, codici fiscali, ospedali, indirizzi o date di nascita). "
@@ -608,7 +612,7 @@ async def extract_from_report(
         )
     except Exception as exc:
         logger.warning("extractor report fallito exc={}", type(exc).__name__)
-        return ReportExtractionResult()
+        return ReportExtractionResult(is_medical_report=False)
 
     report_iso = (
         _normalize_iso_timestamp(batch.report_date_iso, fallback_iso=iso_now)

@@ -415,9 +415,32 @@ class LLMExtractionBatch(BaseModel):
 class LLMReportExtractionBatch(BaseModel):
     """Schema radice passato a `GenerateContentConfig.response_schema` per i referti (testo o foto)."""
 
-    is_medical_report: bool = True
-    report_type: str = "ANALISI_SANGUE"
-    report_date_iso: str | None = None
-    clean_summary: str = ""
-    clinical_findings_text: str = ""
+    is_medical_report: bool = Field(
+        default=True,
+        description=(
+            "True SOLO se il documento o l'immagine è un vero referto medico "
+            "(esami del sangue/urine, referto di visita specialistica, esame strumentale o lettera clinica). "
+            "False se è la foto di un pasto/piatto di cibo, di un glucometro, di una scatola di farmaci "
+            "o un documento/immagine non sanitaria."
+        ),
+    )
+    report_type: str = Field(
+        default="ANALISI_SANGUE",
+        description=(
+            "Categoria del referto tra: ANALISI_SANGUE, VISITA_DIABETOLOGICA, VISITA_CARDIOLOGICA, "
+            "RETINOPATIA, NEFROPATIA, ESAME_PODOLOGICO, SALUTE_ORALE, DISFUNZIONE_ERETTILE, ALTRO."
+        ),
+    )
+    report_date_iso: str | None = Field(
+        default=None,
+        description="Data del referto in formato ISO-8601 (es. '2026-10-28T08:00:00+01:00') se presente.",
+    )
+    clean_summary: str = Field(
+        default="",
+        description="Sintesi clinica oggettiva del referto, completamente priva di dati identificativi (PII).",
+    )
+    clinical_findings_text: str = Field(
+        default="",
+        description="Principali conclusioni diagnostiche o valori del referto de-identificati.",
+    )
     items: list[RawExtractedItem] = Field(default_factory=list)
