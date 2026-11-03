@@ -107,14 +107,14 @@ async def classify_user_input(
             has_loggable_data=True,
         )
 
-    # Chiamata semantica a Gemini Flash (temp 0.0, prompt conciso, token ristretti)
+    # Chiamata semantica a Gemini Flash (temp 0.0, prompt conciso, token adeguati anche per thinking)
     try:
         try:
             classification = await llm.generate_structured(
                 [ChatMessage(role="user", content=clean_msg)],
                 system=get_guardrails_system_prompt(),
                 response_schema=GuardrailClassification,
-                max_output_tokens=128,
+                max_output_tokens=512,
             )
         except TypeError:
             classification = await llm.generate_structured(
@@ -132,7 +132,7 @@ async def classify_user_input(
             )
         return classification
     except Exception as exc:
-        logger.warning("classificatore semantico guardrail fallito (degradazione graziosa) exc={}", type(exc).__name__)
+        logger.warning("classificatore semantico guardrail fallito (degradazione graziosa) exc={} detail={}", type(exc).__name__, exc)
         # Degradazione graziosa sicura: non blocca la conversazione per un errore transitorio di rete
         return GuardrailClassification(
             in_topic=True,
