@@ -264,6 +264,11 @@ class VertexProvider:
         structured_cfg["temperature"] = 0.0
         if max_output_tokens is not None:
             structured_cfg["max_output_tokens"] = max_output_tokens
+        else:
+            structured_cfg["max_output_tokens"] = max(
+                int(structured_cfg.get("max_output_tokens") or 2048),
+                4096,
+            )
         config = types.GenerateContentConfig(
             system_instruction=system,
             response_mime_type="application/json",

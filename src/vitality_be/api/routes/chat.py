@@ -153,6 +153,7 @@ async def chat(
                     attachment_kind=attachment_kind,
                     user_db=user_db,
                     embedder=embedder,
+                    user_id=user.id,
                 )
     except GateBusy:
         raise HTTPException(
@@ -320,6 +321,7 @@ async def chat_stream(
                         attachment_kind=attachment_kind,
                         user_db=user_db,
                         embedder=embedder,
+                        user_id=user.id,
                     )
 
                     pipeline_res: chat_service.ChatPipelineResult | None = None

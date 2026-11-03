@@ -69,20 +69,46 @@ async def _archive_verified_chat_report(
     embedder: EmbedderProvider | None,
     raw_media_bytes: bytes | None = None,
     raw_media_mime: str | None = None,
+    user_id: str | None = None,
+    fallback_proposals: list[ProposedEntry] | None = None,
+    fallback_text: str | None = None,
 ) -> list[ProposedEntry]:
     """Archivia in `public.patient_reports` un referto medico verificato allegato in chat."""
-    if not rep or not rep.is_medical_report:
+    is_med = bool(rep and rep.is_medical_report)
+    proposals = list((rep.proposed_entries if rep else None) or fallback_proposals or [])
+    clean_sum = (rep.clean_summary if rep else None) or ""
+    scrub_txt = (rep.scrubbed_content if rep else None) or fallback_text or ""
+    rep_type = (rep.report_type if rep else None) or "ANALISI_SANGUE"
+    rep_at = (rep.report_at if rep else None)
+
+    has_clinical_proposals = any(p.target_table == "diabetes_data" for p in proposals)
+    if not is_med and not (raw_media_mime == "application/pdf" and has_clinical_proposals):
         return []
-    proposals = list(rep.proposed_entries or [])
-    if user_db is None or not hasattr(user_db, "table") or not (rep.clean_summary or proposals or rep.scrubbed_content):
+
+    if user_db is None or not hasattr(user_db, "table") or not (clean_sum or proposals or scrub_txt):
         return proposals
 
     try:
+        from datetime import datetime, timezone
         import re
         import time
 
-        rep_title = f"Referto {str(rep.report_type or 'ANALISI_SANGUE').replace('_', ' ').title()}"
-        text_for_embed = f"{rep.clean_summary or ''}\n\n{(rep.scrubbed_content or '')[:3000]}".strip()
+        if not rep_at:
+            rep_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+        uid = user_id
+        if not uid:
+            try:
+                u_resp = await asyncio.to_thread(
+                    lambda: user_db.table("user").select("id").limit(1).execute()
+                )
+                u_rows = getattr(u_resp, "data", None)
+                uid = str(u_rows[0].get("id")) if (u_rows and isinstance(u_rows, list) and len(u_rows) > 0 and u_rows[0].get("id")) else None
+            except Exception:
+                uid = None
+
+        rep_title = f"Referto {str(rep_type).replace('_', ' ').title()}"
+        text_for_embed = f"{clean_sum}\n\n{scrub_txt[:3000]}".strip()
         vector = None
         if embedder is not None and text_for_embed and hasattr(embedder, "embed_document"):
             try:
@@ -91,31 +117,25 @@ async def _archive_verified_chat_report(
                 vector = None
 
         saved_file_path: str | None = None
-        if raw_media_bytes and raw_media_mime and hasattr(user_db, "storage"):
+        if uid and raw_media_bytes and raw_media_mime and hasattr(user_db, "storage"):
             try:
-                u_resp = await asyncio.to_thread(
-                    lambda: user_db.table("user").select("id").limit(1).execute()
-                )
-                u_rows = getattr(u_resp, "data", None)
-                uid = str(u_rows[0].get("id")) if (u_rows and isinstance(u_rows, list) and len(u_rows) > 0) else None
-                if uid:
-                    ext_map = {
-                        "application/pdf": "pdf",
-                        "image/jpeg": "jpg",
-                        "image/png": "png",
-                        "image/webp": "webp",
-                    }
-                    ext = ext_map.get(raw_media_mime, "pdf")
-                    slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", rep_title)[:40].strip("_") or "referto"
-                    storage_path = f"{uid}/{int(time.time() * 1000)}_{slug}.{ext}"
-                    await asyncio.to_thread(
-                        lambda: user_db.storage.from_("patient-reports").upload(
-                            storage_path,
-                            raw_media_bytes,
-                            {"content-type": raw_media_mime, "upsert": "true"},
-                        )
+                ext_map = {
+                    "application/pdf": "pdf",
+                    "image/jpeg": "jpg",
+                    "image/png": "png",
+                    "image/webp": "webp",
+                }
+                ext = ext_map.get(raw_media_mime, "pdf")
+                slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", rep_title)[:40].strip("_") or "referto"
+                storage_path = f"{uid}/{int(time.time() * 1000)}_{slug}.{ext}"
+                await asyncio.to_thread(
+                    lambda: user_db.storage.from_("patient-reports").upload(
+                        storage_path,
+                        raw_media_bytes,
+                        {"content-type": raw_media_mime, "upsert": "true"},
                     )
-                    saved_file_path = storage_path
+                )
+                saved_file_path = storage_path
             except Exception as st_exc:
                 logger.debug("Storage upload referto chat opzionale ignorato exc={}", type(st_exc).__name__)
 
@@ -127,20 +147,39 @@ async def _archive_verified_chat_report(
 
         row_data: dict[str, Any] = {
             "source_name": rep_title,
-            "report_type": rep.report_type or "ANALISI_SANGUE",
-            "report_at": rep.report_at,
-            "content": rep.scrubbed_content or rep.clean_summary or rep_title,
-            "clean_summary": rep.clean_summary or None,
+            "report_type": rep_type,
+            "report_at": rep_at,
+            "content": scrub_txt or clean_sum or rep_title,
+            "clean_summary": clean_sum or None,
             "extracted_params": extracted_params,
         }
+        if uid:
+            row_data["user_id"] = uid
         if saved_file_path:
             row_data["file_path"] = saved_file_path
         if vector is not None:
             row_data["embedding"] = vector_literal(vector)
 
-        inserted = await asyncio.to_thread(
-            lambda: user_db.table("patient_reports").insert(row_data).execute()
-        )
+        try:
+            inserted = await asyncio.to_thread(
+                lambda: user_db.table("patient_reports").insert(row_data).execute()
+            )
+        except Exception as ins_exc:
+            logger.warning("Insert esteso referto chat fallito ({}): fallback schema base", ins_exc)
+            fb_row: dict[str, Any] = {
+                "source_name": rep_title,
+                "report_type": "ANALISI_SANGUE",
+                "report_at": rep_at,
+                "content": scrub_txt or clean_sum or rep_title,
+            }
+            if uid:
+                fb_row["user_id"] = uid
+            if vector is not None:
+                fb_row["embedding"] = vector_literal(vector)
+            inserted = await asyncio.to_thread(
+                lambda: user_db.table("patient_reports").insert(fb_row).execute()
+            )
+
         rows = getattr(inserted, "data", None)
         if rows and isinstance(rows, list) and len(rows) > 0:
             rep_id = rows[0].get("id")
@@ -159,9 +198,35 @@ async def _archive_verified_chat_report(
                 except (ValueError, TypeError):
                     pass
     except Exception as save_exc:
-        logger.debug("Auto-archiviazione referto chat ignorata exc={}", type(save_exc).__name__)
+        logger.warning("Auto-archiviazione referto chat fallita exc={}: {}", type(save_exc).__name__, save_exc)
 
     return proposals
+
+
+def _merge_unique_proposals(
+    base_props: list[ProposedEntry],
+    report_props: list[ProposedEntry],
+) -> list[ProposedEntry]:
+    """Unisce le proposte evitando duplicati sullo stesso parametro clinico (privilegia report_props con source_report_id)."""
+    if not report_props:
+        return base_props
+    if not base_props:
+        return report_props
+    seen_metrics: set[str] = set()
+    merged: list[ProposedEntry] = []
+    for p in report_props:
+        merged.append(p)
+        if p.target_table == "diabetes_data":
+            m_key = str(p.data.get("metric_type") or "").strip().upper().replace(" ", "_")
+            if m_key:
+                seen_metrics.add(m_key)
+    for p in base_props:
+        if p.target_table == "diabetes_data":
+            m_key = str(p.data.get("metric_type") or "").strip().upper().replace(" ", "_")
+            if m_key and m_key in seen_metrics:
+                continue
+        merged.append(p)
+    return merged
 
 
 async def run_chat_pipeline(
@@ -174,6 +239,7 @@ async def run_chat_pipeline(
     attachment_kind: AttachmentKind | None = None,
     user_db: Client | None = None,
     embedder: EmbedderProvider | None = None,
+    user_id: str | None = None,
 ) -> ChatPipelineResult:
     """Esegue la pipeline Dual-RAG completa con supporto multimodale ed estrazione clinica in parallelo."""
     # --- LIVELLO 1: INPUT DETERMINISTICO (< 1 ms, 0 ms LLM) ---
@@ -398,6 +464,7 @@ async def run_chat_pipeline(
             masking_map=masking_map,
             active_therapies=active_therapies,
         )
+        rep = None
         try:
             rep = await extract_from_report(
                 llm,
@@ -407,20 +474,20 @@ async def run_chat_pipeline(
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
-            if rep and rep.is_medical_report:
-                rep_props = await _archive_verified_chat_report(
-                    rep=rep,
-                    user_db=user_db,
-                    embedder=embedder,
-                    raw_media_bytes=media_bytes,
-                    raw_media_mime=media_mime_type,
-                )
-                if rep_props:
-                    res_proposals.extend(rep_props)
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
-        return res_proposals
+        rep_props = await _archive_verified_chat_report(
+            rep=rep,
+            user_db=user_db,
+            embedder=embedder,
+            raw_media_bytes=media_bytes,
+            raw_media_mime=media_mime_type,
+            user_id=user_id,
+            fallback_proposals=res_proposals,
+            fallback_text=extracted_pdf_text or None,
+        )
+        return _merge_unique_proposals(res_proposals, rep_props)
 
     try:
         llm_result, proposals = await asyncio.gather(_generate_llm(), _extract())
@@ -473,6 +540,7 @@ async def stream_chat_pipeline(
     attachment_kind: AttachmentKind | None = None,
     user_db: Client | None = None,
     embedder: EmbedderProvider | None = None,
+    user_id: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Esegue la pipeline Dual-RAG con generazione del testo in streaming SSE e task HITL in parallelo.
 
@@ -687,6 +755,7 @@ async def stream_chat_pipeline(
             masking_map=masking_map,
             active_therapies=active_therapies,
         )
+        rep = None
         try:
             rep = await extract_from_report(
                 llm,
@@ -696,20 +765,20 @@ async def stream_chat_pipeline(
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
-            if rep and rep.is_medical_report:
-                rep_props = await _archive_verified_chat_report(
-                    rep=rep,
-                    user_db=user_db,
-                    embedder=embedder,
-                    raw_media_bytes=media_bytes,
-                    raw_media_mime=media_mime_type,
-                )
-                if rep_props:
-                    res_proposals.extend(rep_props)
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
-        return res_proposals
+        rep_props = await _archive_verified_chat_report(
+            rep=rep,
+            user_db=user_db,
+            embedder=embedder,
+            raw_media_bytes=media_bytes,
+            raw_media_mime=media_mime_type,
+            user_id=user_id,
+            fallback_proposals=res_proposals,
+            fallback_text=extracted_pdf_text or None,
+        )
+        return _merge_unique_proposals(res_proposals, rep_props)
 
     # Ottimizzazione Latenza: avvia l'estrazione HITL in background SOLO se ci sono dati loggabili o allegati
     extract_task = None

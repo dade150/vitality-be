@@ -308,6 +308,21 @@ def inspect_pdf_in_ram(pdf_bytes: bytes, *, max_pages: int = 15) -> PdfInspectio
         doc.close()
 
 
+def _sniff_mime_from_magic_bytes(data: bytes) -> str | None:
+    """Rileva il tipo MIME reale dai magic bytes quando il client invia application/octet-stream."""
+    if len(data) < 12:
+        return None
+    if data.startswith(b"%PDF-"):
+        return "application/pdf"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
 def process_raw_attachment_bytes(
     *,
     raw_bytes: bytes,
@@ -316,6 +331,15 @@ def process_raw_attachment_bytes(
     max_bytes: int = 5 * 1024 * 1024,
 ) -> ProcessedAttachment:
     """Valida e ripulisce in RAM un allegato partendo direttamente dai byte grezzi (es. upload multipart)."""
+    normalized_mime = (mime_type or "").strip().lower()
+    if normalized_mime == "image/jpg":
+        normalized_mime = "image/jpeg"
+    elif normalized_mime in ("application/octet-stream", "binary/octet-stream", ""):
+        sniffed = _sniff_mime_from_magic_bytes(raw_bytes)
+        if sniffed:
+            normalized_mime = sniffed
+    mime_type = normalized_mime
+
     if mime_type not in ALLOWED_MIME_TYPES:
         raise MultimodalValidationError(
             f"Tipo MIME '{mime_type}' non consentito. Formati ammessi: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
