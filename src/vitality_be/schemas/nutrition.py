@@ -25,21 +25,17 @@ class MealEstimateRequest(BaseModel):
 
 class LLMExtractedIngredient(BaseModel):
     ingredient_name: str = Field(..., description="Nome pulito dell'alimento in italiano")
-    quantity_g: float = Field(..., gt=0, le=5000, description="Grammi edibili consumati (stimati o espliciti)")
+    quantity_g: float = Field(..., description="Grammi edibili consumati (stimati o espliciti)")
     matched_food_code: Optional[str] = Field(
         None,
         description="food_code esatto scelto dalla lista candidati CREA fornita, oppure null se nessun candidato corrisponde",
     )
     fallback_kcal_per_100g: Optional[float] = Field(
         None,
-        ge=0,
-        le=950,
         description="Kcal per 100g stimate solo se matched_food_code è null",
     )
     fallback_carbs_per_100g: Optional[float] = Field(
         None,
-        ge=0,
-        le=100,
         description="Carboidrati disponibili (g) per 100g stimati solo se matched_food_code è null",
     )
 

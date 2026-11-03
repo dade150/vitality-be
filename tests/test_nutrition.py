@@ -202,3 +202,50 @@ def test_nutrition_resilience_on_llm_error():
     assert res.total_calories > 0
     assert res.total_carbs_grams > 0
 
+
+def test_nutrition_schema_compatibility_with_genai_t_schema():
+    """Verifica che LLMMealDecomposition sia pienamente compatibile con google.genai t_schema (senza exclusiveMinimum)."""
+    from google.genai._transformers import t_schema
+
+    schema = t_schema(None, LLMMealDecomposition)
+    assert schema is not None
+    assert "items" in schema.properties
+
+
+def test_nutrition_multi_ingredient_fallback():
+    """Verifica che nel fallback deterministico alimenti multipli vengano tutti conservati."""
+    records = [
+        {
+            "food_code": "006600",
+            "name": "Pomodori, da insalata, freschi",
+            "category": "Verdure e ortaggi",
+            "portion_g": "200.00",
+            "macros": {"energy_kcal": 19, "available_carbohydrates": 2.8},
+        },
+        {
+            "food_code": "000800",
+            "name": "Pane di tipo 00",
+            "category": "Cereali e derivati",
+            "portion_g": "50.00",
+            "macros": {"energy_kcal": 289, "available_carbohydrates": 55.4},
+        },
+        {
+            "food_code": "007100",
+            "name": "Mele fresche con buccia",
+            "category": "Frutta",
+            "portion_g": "150.00",
+            "macros": {"energy_kcal": 53, "available_carbohydrates": 13.7},
+        },
+    ]
+    db = NutritionTestUserDb(records)
+    llm = NutritionTestLLM(exc=LLMUnavailable("LLM offline"))
+
+    req = MealEstimateRequest(description="insalata con 90 pane una mela", meal_type=MealTypeEnum.PRANZO)
+    res = _run_coroutine(estimate_meal_nutrition(req, user_db=db, llm=llm))
+
+    assert len(res.items) == 3
+    item_names = [it.name for it in res.items]
+    assert any("Pomodori" in n or "insalata" in n.lower() for n in item_names)
+    assert any("Pane" in n for n in item_names)
+    assert any("Mele" in n for n in item_names)
+

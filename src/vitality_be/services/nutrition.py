@@ -119,6 +119,18 @@ def extract_search_tokens(text: str) -> list[str]:
     return deduped
 
 
+def _stem_match(token: str, text: str) -> bool:
+    """Verifica match tollerante singolare/plurale italiano (es. mela/mele, pomodoro/pomodori)."""
+    t = token.lower().strip()
+    target = text.lower()
+    if t in target:
+        return True
+    if len(t) >= 4 and t[-1] in ("a", "e", "i", "o", "u"):
+        if t[:-1] in target:
+            return True
+    return False
+
+
 async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict[str, Any]]:
     """Cerca alimenti candidati nella tabella `foods` (o `alimenti`) su Supabase."""
     if not tokens:
@@ -128,7 +140,7 @@ async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict
 
     # 1. Tentativo tramite RPC dedicata search_foods per i primi token
     if hasattr(user_db, "rpc"):
-        for token in tokens[:4]:
+        for token in tokens[:8]:
             try:
                 query = user_db.rpc("search_foods", {"query_text": token, "match_limit": 10})
                 resp = await query if asyncio.iscoroutine(query) else (query.execute() if hasattr(query, "execute") else query)
@@ -139,14 +151,14 @@ async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict
                         if code and code not in candidates_by_code:
                             candidates_by_code[code] = r
             except Exception:
-                # Se la RPC non è installata o fallisce, passiamo al fallback query diretta
-                break
+                # Se la RPC fallisce per un token, continuiamo con i successivi
+                continue
 
-    # 2. Se la RPC non ha restituito candidati, esegue query diretta con ILIKE
-    if not candidates_by_code and hasattr(user_db, "table"):
+    # 2. Se la RPC non ha restituito candidati sufficienti, esegue query diretta con ILIKE
+    if len(candidates_by_code) < 3 and hasattr(user_db, "table"):
         table_name = "foods"
         cols = "food_code, name, english_name, category, portion_g, edible_part, macros"
-        for token in tokens[:5]:
+        for token in tokens[:8]:
             try:
                 query = user_db.table(table_name).select(cols).ilike("name", f"%{token}%").limit(10)
                 resp = await query if asyncio.iscoroutine(query) else (query.execute() if hasattr(query, "execute") else query)
@@ -173,7 +185,7 @@ async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict
                 else:
                     logger.debug("Query diretta alimenti fallita per token={}: {}", token, type(exc).__name__)
 
-    return list(candidates_by_code.values())[:30]
+    return list(candidates_by_code.values())[:40]
 
 
 def _build_nutrition_prompt(
@@ -198,13 +210,13 @@ def _build_nutrition_prompt(
         f"Sei un assistente nutrizionista clinico esperto in Diabete di Tipo 2.\n"
         f"Analizza la descrizione del pasto ({meal_type.value}) e scomponilo nei singoli ingredienti o cibi consumati.\n\n"
         f"REGOLE RIGOROSE:\n"
-        f"1. Identifica ogni singolo cibo o condimento menzionato (es. pasta, olio, formaggio, frutta).\n"
-        f"2. Se l'utente specifica la quantità esatta (es. '80g', '200g', '1 etto'), imposta quantity_g su tale valore.\n"
-        f"3. Se l'utente usa misure casalinghe, convertile in grammi realistici: 1 cucchiaio olio = 10g, 1 cucchiaio parmigiano = 10g, 1 cucchiaino zucchero = 5g, 1 fetta pane = 50g, 1 mela/arancia media = 150g, 1 caffè = 30g.\n"
+        f"1. Identifica TUTTI i singoli cibi o alimenti menzionati nel testo (es. se l'utente scrive 'insalata con 90 pane una mela', DEVI estrarre tre elementi separati: insalata, pane e mela). Non tralasciare nessun ingrediente.\n"
+        f"2. Se l'utente specifica la quantità esatta o un numero prima/dopo un cibo anche senza 'g' (es. '80g', '90 pane' -> 90g di pane, '80 pasta' -> 80g di pasta, '200g', '1 etto' -> 100g), imposta quantity_g su tale valore in grammi.\n"
+        f"3. Se l'utente usa misure casalinghe o colloquiali, convertile in grammi realistici: 'una mela' = 150g, '1 fetta di pane' = 50g, 'un panino' = 80g, 'insalata' = 150g, 1 cucchiaio olio = 10g, 1 cucchiaio parmigiano = 10g, 1 cucchiaino zucchero = 5g, 1 caffè = 30g.\n"
         f"4. Se la quantità non è specificata, usa la grammatura della porzione standard CREA (portion_g) o una porzione standard LARN coerente per {meal_type.value}.\n"
         f"5. Se un ingrediente corrisponde a uno dei candidati della lista CREA fornita sotto, seleziona OBBLIGATORIAMENTE il suo matched_food_code esatto.\n"
         f"   - Se l'utente scrive '80g di pasta/riso/farro' senza dire 'cotto', intende peso a crudo (scegli il record 'crudo'). Se scrive 'cotto' o 'un piatto cotto', scegli il record 'cotto'.\n"
-        f"6. Se nessun candidato CREA corrisponde, lascia matched_food_code = null e fornisci fallback_kcal_per_100g e fallback_carbs_per_100g stimati in modo attendibile.\n"
+        f"6. Se nessun candidato CREA corrisponde per un ingrediente, lascia matched_food_code = null e fornisci fallback_kcal_per_100g e fallback_carbs_per_100g stimati in modo attendibile.\n"
         f"7. La clinical_note (se presente) deve essere brevissima (max 140 caratteri) e puramente educativa (es. impatto su indice glicemico o combinazione con fibre), MAI prescrittiva o farmacologica.\n\n"
         f"<candidati_crea>\n{candidates_block}\n</candidati_crea>\n\n"
         f"<pasto_utente>\n{description}\n</pasto_utente>"
@@ -289,29 +301,60 @@ async def estimate_meal_nutrition(
 
     # 5. Fallback Deterministico se non ci sono elementi (es. EchoProvider nei test o LLM offline)
     if not recognized_items:
-        # Se abbiamo candidati CREA estratti dai token, creiamo una proposta dal migliore candidato
+        # Se abbiamo candidati CREA estratti dai token, creiamo una proposta per ciascun ingrediente riconosciuto
         if candidates:
-            best_c = candidates[0]
-            portion = _parse_crea_float(best_c.get("portion_g"), default=80.0)
-            macros = best_c.get("macros") or {}
-            kcal_100g = _parse_crea_float(macros.get("energy_kcal"), default=150.0)
-            carbs_100g = _parse_crea_float(macros.get("available_carbohydrates"), default=20.0)
+            seen_codes = set()
+            for token in tokens:
+                matching = [
+                    c for c in candidates
+                    if _stem_match(token, str(c.get("name", ""))) or _stem_match(token, str(c.get("category", "")))
+                ]
+                best = matching[0] if matching else None
+                if best and str(best.get("food_code")) not in seen_codes:
+                    seen_codes.add(str(best.get("food_code")))
+                    portion = _parse_crea_float(best.get("portion_g"), default=80.0)
+                    macros = best.get("macros") or {}
+                    kcal_100g = _parse_crea_float(macros.get("energy_kcal"), default=150.0)
+                    carbs_100g = _parse_crea_float(macros.get("available_carbohydrates"), default=20.0)
 
-            item_kcal = round((kcal_100g * portion) / 100.0)
-            item_carbs = round((carbs_100g * portion) / 100.0, 1)
+                    item_kcal = round((kcal_100g * portion) / 100.0)
+                    item_carbs = round((carbs_100g * portion) / 100.0, 1)
 
-            recognized_items.append(
-                RecognizedFoodItem(
-                    food_code=best_c.get("food_code"),
-                    name=best_c.get("name") or clean_desc,
-                    quantity_g=portion,
-                    calories=item_kcal,
-                    carbs_grams=item_carbs,
-                    source="CREA",
+                    recognized_items.append(
+                        RecognizedFoodItem(
+                            food_code=best.get("food_code"),
+                            name=best.get("name") or token.capitalize(),
+                            quantity_g=portion,
+                            calories=item_kcal,
+                            carbs_grams=item_carbs,
+                            source="CREA",
+                        )
+                    )
+
+            if not recognized_items:
+                best_c = candidates[0]
+                portion = _parse_crea_float(best_c.get("portion_g"), default=80.0)
+                macros = best_c.get("macros") or {}
+                kcal_100g = _parse_crea_float(macros.get("energy_kcal"), default=150.0)
+                carbs_100g = _parse_crea_float(macros.get("available_carbohydrates"), default=20.0)
+
+                item_kcal = round((kcal_100g * portion) / 100.0)
+                item_carbs = round((carbs_100g * portion) / 100.0, 1)
+
+                recognized_items.append(
+                    RecognizedFoodItem(
+                        food_code=best_c.get("food_code"),
+                        name=best_c.get("name") or clean_desc,
+                        quantity_g=portion,
+                        calories=item_kcal,
+                        carbs_grams=item_carbs,
+                        source="CREA",
+                    )
                 )
-            )
+
             confidence = "MEDIUM"
-            note = f"Valori calcolati sulla porzione standard CREA ({int(portion)} g) di {best_c.get('name')}."
+            names_str = ", ".join(it.name for it in recognized_items)
+            note = f"Valori deterministici calcolati sulle tabelle CREA per gli alimenti identificati ({names_str})."
         else:
             def_kcal, def_carbs = _MEAL_TYPE_DEFAULTS.get(request.meal_type, (400, 50))
             recognized_items.append(
