@@ -18,7 +18,11 @@ from vitality_be.llm.factory import get_llm
 from vitality_be.schemas.reports import ReportUploadResponse
 from vitality_be.services.multimodal import MultimodalValidationError, process_raw_attachment_bytes
 from vitality_be.services.pdf_summary import generate_patient_summary_pdf
-from vitality_be.services.reports import NonMedicalDocumentError, process_and_ingest_report
+from vitality_be.services.reports import (
+    NonMedicalDocumentError,
+    process_and_ingest_report,
+    render_single_report_pdf,
+)
 
 router = APIRouter(tags=["reports"])
 
@@ -87,6 +91,8 @@ async def upload_report(
                     user_db=user_db,
                     llm=llm,
                     embedder=embedder,
+                    user_id=user.id,
+                    filename=file.filename,
                 )
                 return result
     except NonMedicalDocumentError as exc:
@@ -160,3 +166,75 @@ async def export_summary_pdf(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+@router.get(
+    "/reports/{report_id}/document",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_rate_limit)],
+)
+async def download_report_document(
+    report_id: int,
+    user: CurrentUserDep,
+    user_db: UserDbDep,
+) -> Response:
+    """Restituisce il file originale del referto da Storage o ne genera il PDF dai dati salvati."""
+    try:
+        resp = await asyncio.to_thread(
+            lambda: user_db.table("patient_reports").select("*").eq("id", report_id).limit(1).execute()
+        )
+        rows = getattr(resp, "data", None)
+    except Exception as exc:
+        logger.error("download_report_document query fallita user={} exc={}", user.id, type(exc).__name__)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Impossibile recuperare il referto.") from None
+
+    if not rows or not isinstance(rows, list):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Referto non trovato.")
+
+    row = rows[0]
+    file_path = row.get("file_path")
+
+    # 1. Prova a scaricare il file originale da Supabase Storage se presente
+    if file_path and hasattr(user_db, "storage"):
+        try:
+            file_bytes = await asyncio.to_thread(
+                lambda: user_db.storage.from_("patient-reports").download(str(file_path))
+            )
+            if file_bytes:
+                lower_path = str(file_path).lower()
+                if lower_path.endswith(".png"):
+                    mime = "image/png"
+                    ext = "png"
+                elif lower_path.endswith((".jpg", ".jpeg")):
+                    mime = "image/jpeg"
+                    ext = "jpg"
+                elif lower_path.endswith(".webp"):
+                    mime = "image/webp"
+                    ext = "webp"
+                else:
+                    mime = "application/pdf"
+                    ext = "pdf"
+                return Response(
+                    content=file_bytes,
+                    media_type=mime,
+                    headers={
+                        "Content-Disposition": f'inline; filename="referto_{report_id}.{ext}"',
+                        "Cache-Control": "no-store, no-cache, must-revalidate",
+                        "X-Content-Type-Options": "nosniff",
+                    },
+                )
+        except Exception as st_exc:
+            logger.debug("Download da Storage non riuscito, genero PDF di fallback exc={}", type(st_exc).__name__)
+
+    # 2. Fallback: genera al volo un PDF pulito con i dati clinici del referto
+    pdf_bytes = await asyncio.to_thread(render_single_report_pdf, row)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="referto_{report_id}.pdf"',
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+

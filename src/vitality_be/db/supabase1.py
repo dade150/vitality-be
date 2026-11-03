@@ -11,6 +11,7 @@ def get_user_db(user: CurrentUserDep) -> Client:
     s = get_settings()
     client = create_client(s.supabase_url, s.supabase_anon_key)
     client.postgrest.auth(user.token)
+    client.options.headers["Authorization"] = f"Bearer {user.token}"
     return client
 
 

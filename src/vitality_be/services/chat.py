@@ -62,6 +62,108 @@ class ChatPipelineResult:
     guardrail_category: GuardrailCategory | None = "in_topic"
 
 
+async def _archive_verified_chat_report(
+    *,
+    rep,
+    user_db: Client | None,
+    embedder: EmbedderProvider | None,
+    raw_media_bytes: bytes | None = None,
+    raw_media_mime: str | None = None,
+) -> list[ProposedEntry]:
+    """Archivia in `public.patient_reports` un referto medico verificato allegato in chat."""
+    if not rep or not rep.is_medical_report:
+        return []
+    proposals = list(rep.proposed_entries or [])
+    if user_db is None or not hasattr(user_db, "table") or not (rep.clean_summary or proposals or rep.scrubbed_content):
+        return proposals
+
+    try:
+        import re
+        import time
+
+        rep_title = f"Referto {str(rep.report_type or 'ANALISI_SANGUE').replace('_', ' ').title()}"
+        text_for_embed = f"{rep.clean_summary or ''}\n\n{(rep.scrubbed_content or '')[:3000]}".strip()
+        vector = None
+        if embedder is not None and text_for_embed and hasattr(embedder, "embed_document"):
+            try:
+                vector = await embedder.embed_document(title=rep_title, text=text_for_embed)
+            except Exception:
+                vector = None
+
+        saved_file_path: str | None = None
+        if raw_media_bytes and raw_media_mime and hasattr(user_db, "storage"):
+            try:
+                u_resp = await asyncio.to_thread(
+                    lambda: user_db.table("user").select("id").limit(1).execute()
+                )
+                u_rows = getattr(u_resp, "data", None)
+                uid = str(u_rows[0].get("id")) if (u_rows and isinstance(u_rows, list) and len(u_rows) > 0) else None
+                if uid:
+                    ext_map = {
+                        "application/pdf": "pdf",
+                        "image/jpeg": "jpg",
+                        "image/png": "png",
+                        "image/webp": "webp",
+                    }
+                    ext = ext_map.get(raw_media_mime, "pdf")
+                    slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", rep_title)[:40].strip("_") or "referto"
+                    storage_path = f"{uid}/{int(time.time() * 1000)}_{slug}.{ext}"
+                    await asyncio.to_thread(
+                        lambda: user_db.storage.from_("patient-reports").upload(
+                            storage_path,
+                            raw_media_bytes,
+                            {"content-type": raw_media_mime, "upsert": "true"},
+                        )
+                    )
+                    saved_file_path = storage_path
+            except Exception as st_exc:
+                logger.debug("Storage upload referto chat opzionale ignorato exc={}", type(st_exc).__name__)
+
+        extracted_params: dict[str, Any] = {}
+        for p in proposals:
+            if p.target_table == "diabetes_data":
+                m_key = str(p.data.get("metric_type") or "MISURA").upper().replace(" ", "_")
+                extracted_params[m_key] = p.data.get("metric_value")
+
+        row_data: dict[str, Any] = {
+            "source_name": rep_title,
+            "report_type": rep.report_type or "ANALISI_SANGUE",
+            "report_at": rep.report_at,
+            "content": rep.scrubbed_content or rep.clean_summary or rep_title,
+            "clean_summary": rep.clean_summary or None,
+            "extracted_params": extracted_params,
+        }
+        if saved_file_path:
+            row_data["file_path"] = saved_file_path
+        if vector is not None:
+            row_data["embedding"] = vector_literal(vector)
+
+        inserted = await asyncio.to_thread(
+            lambda: user_db.table("patient_reports").insert(row_data).execute()
+        )
+        rows = getattr(inserted, "data", None)
+        if rows and isinstance(rows, list) and len(rows) > 0:
+            rep_id = rows[0].get("id")
+            if rep_id is not None:
+                try:
+                    rep_id_int = int(rep_id)
+                    updated_props: list[ProposedEntry] = []
+                    for p in proposals:
+                        if p.target_table == "diabetes_data":
+                            d_copy = dict(p.data)
+                            d_copy["source_report_id"] = rep_id_int
+                            updated_props.append(p.model_copy(update={"data": d_copy}))
+                        else:
+                            updated_props.append(p)
+                    proposals = updated_props
+                except (ValueError, TypeError):
+                    pass
+    except Exception as save_exc:
+        logger.debug("Auto-archiviazione referto chat ignorata exc={}", type(save_exc).__name__)
+
+    return proposals
+
+
 async def run_chat_pipeline(
     llm: LLMProvider,
     *,
@@ -276,9 +378,9 @@ async def run_chat_pipeline(
         if not classification.has_loggable_data and not (actual_media_bytes or extracted_pdf_text):
             return []
 
-        # Se l'allegato è un referto clinico o un PDF, prova anche l'estrazione dedicata per referti
+        # Se l'allegato è un referto clinico, un PDF o una foto di un documento, prova l'estrazione referti
         is_report = (
-            attachment_kind in ("medical_report", "pdf_document")
+            attachment_kind in ("medical_report", "pdf_document", "generic_image")
             or media_mime_type == "application/pdf"
             or bool(extracted_pdf_text)
         )
@@ -305,8 +407,16 @@ async def run_chat_pipeline(
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
-            if rep and rep.is_medical_report and rep.proposed_entries:
-                res_proposals.extend(rep.proposed_entries)
+            if rep and rep.is_medical_report:
+                rep_props = await _archive_verified_chat_report(
+                    rep=rep,
+                    user_db=user_db,
+                    embedder=embedder,
+                    raw_media_bytes=media_bytes,
+                    raw_media_mime=media_mime_type,
+                )
+                if rep_props:
+                    res_proposals.extend(rep_props)
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 
@@ -559,7 +669,7 @@ async def stream_chat_pipeline(
 
     async def _extract() -> list[ProposedEntry]:
         is_report = (
-            attachment_kind in ("medical_report", "pdf_document")
+            attachment_kind in ("medical_report", "pdf_document", "generic_image")
             or media_mime_type == "application/pdf"
             or bool(extracted_pdf_text)
         )
@@ -586,8 +696,16 @@ async def stream_chat_pipeline(
                 masking_map=masking_map,
                 active_therapies=active_therapies,
             )
-            if rep and rep.is_medical_report and rep.proposed_entries:
-                res_proposals.extend(rep.proposed_entries)
+            if rep and rep.is_medical_report:
+                rep_props = await _archive_verified_chat_report(
+                    rep=rep,
+                    user_db=user_db,
+                    embedder=embedder,
+                    raw_media_bytes=media_bytes,
+                    raw_media_mime=media_mime_type,
+                )
+                if rep_props:
+                    res_proposals.extend(rep_props)
         except Exception as exc:
             logger.warning("extract_from_report fallito exc={}", type(exc).__name__)
 

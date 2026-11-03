@@ -126,6 +126,8 @@ async def process_and_ingest_report(
     embedder: EmbedderProvider,
     masking_map: PatientMaskingMap | None = None,
     active_therapies: Sequence[dict[str, Any]] = (),
+    user_id: str | None = None,
+    filename: str | None = None,
 ) -> ReportUploadResponse:
     """Esegue la pipeline end-to-end a 4 step per l'analisi e l'ingestion vettoriale del referto."""
     started = time.monotonic()
@@ -192,7 +194,31 @@ async def process_and_ingest_report(
             )
             vector = None
 
-    # Step 4 bis: Persistenza su Supabase (public.patient_reports) con RLS SECURITY INVOKER
+    # Step 4 bis: Archiviazione su Supabase Storage (bucket privato patient-reports) se disponibile
+    saved_file_path: str | None = None
+    if user_id and hasattr(user_db, "storage") and attachment.clean_bytes:
+        ext_map = {
+            "application/pdf": "pdf",
+            "image/jpeg": "jpg",
+            "image/png": "png",
+            "image/webp": "webp",
+        }
+        ext = ext_map.get(attachment.mime_type, "pdf")
+        base_slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", clean_title)[:40].strip("_") or "referto"
+        storage_path = f"{user_id}/{int(time.time() * 1000)}_{base_slug}.{ext}"
+        try:
+            await _run_sync_or_thread(
+                lambda: user_db.storage.from_("patient-reports").upload(
+                    storage_path,
+                    attachment.clean_bytes,
+                    {"content-type": attachment.mime_type, "upsert": "true"},
+                )
+            )
+            saved_file_path = storage_path
+        except Exception as st_exc:
+            logger.debug("Archiviazione Storage opzionale non disponibile exc={}", type(st_exc).__name__)
+
+    # Step 4 ter: Persistenza su Supabase (public.patient_reports) con RLS SECURITY INVOKER
     report_id_str = f"rep_{int(time.time() * 1000)}"
     if hasattr(user_db, "table"):
         row_payload: dict[str, Any] = {
@@ -203,6 +229,8 @@ async def process_and_ingest_report(
             "clean_summary": extraction.clean_summary or None,
             "extracted_params": extracted_params_map,
         }
+        if saved_file_path:
+            row_payload["file_path"] = saved_file_path
         if vector is not None:
             row_payload["embedding"] = vector_literal(vector)
 
@@ -246,7 +274,7 @@ async def process_and_ingest_report(
 
     return ReportUploadResponse(
         id=report_id_str,
-        file_path=None,
+        file_path=saved_file_path,
         report_type=extraction.report_type,
         report_at=report_at,
         clean_summary=extraction.clean_summary,
@@ -254,3 +282,50 @@ async def process_and_ingest_report(
         extracted=extracted_items,
         proposed_entries=final_proposals,
     )
+
+
+def render_single_report_pdf(row: dict[str, Any]) -> bytes:
+    """Genera un PDF consultabile con PyMuPDF a partire dai dati salvati in `patient_reports`."""
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+
+    title = str(row.get("source_name") or "Referto medico").strip()
+    rep_type = str(row.get("report_type") or "ANALISI_SANGUE").replace("_", " ")
+    raw_date = str(row.get("report_at") or row.get("created_at") or "")[:10]
+    summary = str(row.get("clean_summary") or "").strip()
+    content = str(row.get("content") or "").strip()
+    params = row.get("extracted_params") if isinstance(row.get("extracted_params"), dict) else {}
+
+    page.draw_rect(fitz.Rect(40, 35, 555, 90), color=(0.9, 0.32, 0.0), fill=(1.0, 0.96, 0.92), width=1)
+    page.insert_text(fitz.Point(55, 60), f"REFERTO CLINICO: {title.upper()}", fontsize=11, fontname="helv", color=(0.8, 0.25, 0.0))
+    page.insert_text(fitz.Point(55, 77), f"Tipologia: {rep_type}   |   Data: {raw_date}", fontsize=9, fontname="helv", color=(0.3, 0.3, 0.3))
+
+    y = 115
+    if summary:
+        page.insert_text(fitz.Point(40, y), "SINTESI CLINICA:", fontsize=10, fontname="helv", color=(0.15, 0.15, 0.15))
+        y += 8
+        rect = fitz.Rect(40, y, 555, y + 80)
+        page.draw_rect(rect, color=(0.85, 0.85, 0.85), fill=(0.98, 0.98, 0.98), width=0.5)
+        page.insert_textbox(fitz.Rect(48, y + 6, 547, y + 74), summary, fontsize=9, fontname="helv", color=(0.2, 0.2, 0.2))
+        y += 95
+
+    if params:
+        page.insert_text(fitz.Point(40, y), "PARAMETRI RILEVATI:", fontsize=10, fontname="helv", color=(0.15, 0.15, 0.15))
+        y += 14
+        for k, v in params.items():
+            page.insert_text(fitz.Point(50, y), f"- {k}: {v}", fontsize=9, fontname="helv", color=(0.1, 0.1, 0.1))
+            y += 15
+        y += 10
+
+    if content:
+        page.insert_text(fitz.Point(40, y), "CONTENUTO DEL DOCUMENTO:", fontsize=10, fontname="helv", color=(0.15, 0.15, 0.15))
+        y += 8
+        rem_height = max(120, 800 - y)
+        rect = fitz.Rect(40, y, 555, y + rem_height)
+        page.draw_rect(rect, color=(0.85, 0.85, 0.85), fill=(0.99, 0.99, 0.99), width=0.5)
+        page.insert_textbox(fitz.Rect(48, y + 8, 547, y + rem_height - 8), content[:3500], fontsize=8.5, fontname="helv", color=(0.2, 0.2, 0.2))
+
+    return doc.tobytes()
+
