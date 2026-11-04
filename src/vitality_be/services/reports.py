@@ -260,8 +260,8 @@ async def process_and_ingest_report(
                     report_id_str = str(real_id)
         except Exception as db_exc:
             logger.warning(
-                "Salvataggio esteso referto fallito ({}): tentativo senza embedding",
-                db_exc,
+                "Salvataggio esteso referto fallito exc={}: tentativo senza embedding",
+                type(db_exc).__name__,
             )
             no_vec_payload = {k: v for k, v in row_payload.items() if k != "embedding"}
             try:
@@ -292,7 +292,17 @@ async def process_and_ingest_report(
                         if real_id is not None:
                             report_id_str = str(real_id)
                 except Exception as fb_exc:
-                    logger.error("Salvataggio referto su DB fallito anche in fallback exc={}: {}", type(fb_exc).__name__, fb_exc)
+                    logger.error("Salvataggio referto su DB fallito anche in fallback exc={}", type(fb_exc).__name__)
+                    # C6: Se l'inserimento a DB fallisce del tutto, rimuove il file orfano caricato su Storage
+                    if saved_file_path and hasattr(user_db, "storage"):
+                        try:
+                            await _run_sync_or_thread(
+                                lambda: user_db.storage.from_("patient-reports").remove([saved_file_path])
+                            )
+                            logger.info("Rimosso file orfano da storage per insert DB fallito path={}", saved_file_path)
+                            saved_file_path = None
+                        except Exception as del_exc:
+                            logger.debug("Pulizia file orfano storage non riuscita exc={}", type(del_exc).__name__)
 
     # Collega source_report_id nelle proposte emesse
     resolved_report_id_int: int | None = None

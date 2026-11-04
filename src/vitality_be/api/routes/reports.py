@@ -72,7 +72,11 @@ async def upload_report(
     try:
         raw_bytes = await file.read()
     except Exception as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Impossibile leggere il file caricato: {exc}") from None
+        logger.warning("Upload referto read fallito user={} exc={}", user.id, type(exc).__name__)
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Impossibile leggere il file caricato. Verifica il documento e riprova.",
+        ) from None
 
     if not raw_bytes:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Il file inviato è vuoto.")

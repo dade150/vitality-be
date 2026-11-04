@@ -169,7 +169,7 @@ async def _archive_verified_chat_report(
                 lambda: user_db.table("patient_reports").insert(row_data).execute()
             )
         except Exception as ins_exc:
-            logger.warning("Insert esteso referto chat fallito ({}): tentativo senza embedding", ins_exc)
+            logger.warning("Insert esteso referto chat fallito exc={}: tentativo senza embedding", type(ins_exc).__name__)
             no_vec_row = {k: v for k, v in row_data.items() if k != "embedding"}
             try:
                 inserted = await asyncio.to_thread(
@@ -205,8 +205,24 @@ async def _archive_verified_chat_report(
                     proposals = updated_props
                 except (ValueError, TypeError):
                     pass
+        elif saved_file_path and hasattr(user_db, "storage"):
+            # C6: Se l'insert a DB fallisce del tutto, pulisci il file caricato su Storage
+            try:
+                await asyncio.to_thread(
+                    lambda: user_db.storage.from_("patient-reports").remove([saved_file_path])
+                )
+                logger.info("Rimosso file orfano chat da storage path={}", saved_file_path)
+            except Exception as del_exc:
+                logger.debug("Pulizia file orfano chat storage fallita exc={}", type(del_exc).__name__)
     except Exception as save_exc:
-        logger.warning("Auto-archiviazione referto chat fallita exc={}: {}", type(save_exc).__name__, save_exc)
+        logger.warning("Auto-archiviazione referto chat fallita exc={}", type(save_exc).__name__)
+        if saved_file_path and hasattr(user_db, "storage"):
+            try:
+                await asyncio.to_thread(
+                    lambda: user_db.storage.from_("patient-reports").remove([saved_file_path])
+                )
+            except Exception:
+                pass
 
     return proposals
 

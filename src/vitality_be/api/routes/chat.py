@@ -104,7 +104,8 @@ async def chat(
 
     if hasattr(user_db, "table"):
         try:
-            if session_id and not body.messages:
+            if session_id:
+                # C2: Se esiste una sessione, carica SEMPRE la cronologia autenticata da DB
                 session_row, history_for_llm = await asyncio.gather(
                     chat_history.get_or_create_session(
                         user_db,
@@ -124,19 +125,20 @@ async def chat(
                 session_row = await chat_history.get_or_create_session(
                     user_db,
                     user_id=user.id,
-                    session_id=session_id,
+                    session_id=None,
                     title_seed=body.message or "",
                     attachment_kind=attachment_kind,
                 )
                 session_id = session_row.get("id")
+                # C2: Per una nuova sessione, accetta solo turni 'user' per evitare injection di finti 'assistant'
                 if body.messages and len(body.messages) > 1:
-                    history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+                    history_for_llm = [ChatMessage("user", m.content) for m in body.messages[:-1] if m.role == "user"]
         except SessionNotFoundError:
             raise HTTPException(404, "Sessione di chat non trovata.") from None
         except Exception as exc:
             logger.warning("Recupero sessione degradato user={} exc={}", user.id, type(exc).__name__)
     elif body.messages and len(body.messages) > 1:
-        history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+        history_for_llm = [ChatMessage("user", m.content) for m in body.messages[:-1] if m.role == "user"]
 
     user_text = body.message or ""
     logger.info("chat user={} session={} history_turns={}", user.id, session_id, len(history_for_llm))
@@ -273,7 +275,8 @@ async def chat_stream(
 
     if hasattr(user_db, "table"):
         try:
-            if session_id and not body.messages:
+            if session_id:
+                # C2: Se esiste una sessione, carica SEMPRE la cronologia autenticata da DB
                 session_row, history_for_llm = await asyncio.gather(
                     chat_history.get_or_create_session(
                         user_db,
@@ -293,19 +296,20 @@ async def chat_stream(
                 session_row = await chat_history.get_or_create_session(
                     user_db,
                     user_id=user.id,
-                    session_id=session_id,
+                    session_id=None,
                     title_seed=body.message or "",
                     attachment_kind=attachment_kind,
                 )
                 session_id = session_row.get("id")
+                # C2: Per una nuova sessione, accetta solo turni 'user' per evitare injection di finti 'assistant'
                 if body.messages and len(body.messages) > 1:
-                    history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+                    history_for_llm = [ChatMessage("user", m.content) for m in body.messages[:-1] if m.role == "user"]
         except SessionNotFoundError:
             raise HTTPException(404, "Sessione di chat non trovata.") from None
         except Exception as exc:
             logger.warning("Recupero sessione degradato user={} exc={}", user.id, type(exc).__name__)
     elif body.messages and len(body.messages) > 1:
-        history_for_llm = [ChatMessage(m.role, m.content) for m in body.messages[:-1]]
+        history_for_llm = [ChatMessage("user", m.content) for m in body.messages[:-1] if m.role == "user"]
 
     user_text = body.message or ""
 

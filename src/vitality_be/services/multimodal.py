@@ -268,7 +268,10 @@ def inspect_pdf_in_ram(pdf_bytes: bytes, *, max_pages: int = 15) -> PdfInspectio
     try:
         doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     except Exception as exc:
-        raise MultimodalValidationError(f"Impossibile leggere la struttura del PDF: {exc}") from None
+        logger.debug("Lettura struttura PDF fallita exc={}", type(exc).__name__)
+        raise MultimodalValidationError(
+            "Impossibile leggere la struttura del PDF. Il documento potrebbe essere danneggiato o protetto da password."
+        ) from None
 
     try:
         page_count = doc.page_count

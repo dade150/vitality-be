@@ -282,8 +282,17 @@ async def estimate_meal_nutrition(
                     )
                 )
             else:
-                fallback_kcal = it.fallback_kcal_per_100g if it.fallback_kcal_per_100g is not None else 120.0
-                fallback_carbs = it.fallback_carbs_per_100g if it.fallback_carbs_per_100g is not None else 15.0
+                # C4: Bounding di sicurezza per evitare valori negativi o fisicamente impossibili restituiti da LLM
+                raw_kcal = it.fallback_kcal_per_100g if it.fallback_kcal_per_100g is not None else 120.0
+                raw_carbs = it.fallback_carbs_per_100g if it.fallback_carbs_per_100g is not None else 15.0
+                try:
+                    fallback_kcal = max(0.0, min(950.0, float(raw_kcal)))
+                except (ValueError, TypeError):
+                    fallback_kcal = 120.0
+                try:
+                    fallback_carbs = max(0.0, min(100.0, float(raw_carbs)))
+                except (ValueError, TypeError):
+                    fallback_carbs = 15.0
 
                 item_kcal = round((fallback_kcal * q_g) / 100.0)
                 item_carbs = round((fallback_carbs * q_g) / 100.0, 1)
