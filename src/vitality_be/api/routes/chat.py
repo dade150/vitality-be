@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from vitality_be.core.config import get_settings
+from vitality_be.core.consent import require_ai_health_consent
 from vitality_be.core.limits import (
     GateBusy,
     RateLimitExceeded,
@@ -55,7 +56,7 @@ def enforce_rate_limit(user: CurrentUserDep) -> None:
     "/chat",
     response_model=ChatResponse,
     response_model_exclude_unset=True,
-    dependencies=[Depends(enforce_rate_limit)],
+    dependencies=[Depends(enforce_rate_limit), Depends(require_ai_health_consent)],
 )
 async def chat(
     body: ChatRequest,
@@ -218,7 +219,7 @@ async def chat(
 
 @router.post(
     "/chat/stream",
-    dependencies=[Depends(enforce_rate_limit)],
+    dependencies=[Depends(enforce_rate_limit), Depends(require_ai_health_consent)],
 )
 async def chat_stream(
     body: ChatRequest,

@@ -18,6 +18,7 @@ class CurrentUser:
     email: str | None
     # serve solo a costruire il client RLS; repr=False così non finisce nei log
     token: str = field(repr=False)
+    ai_health_consent: bool = False
 
 
 def _unauthorized(detail: str) -> HTTPException:
@@ -50,7 +51,14 @@ def get_current_user(
 
     if resp is None or resp.user is None:
         raise _unauthorized("Token non valido o scaduto")
-    return CurrentUser(id=resp.user.id, email=resp.user.email, token=creds.credentials)
+    raw_meta = getattr(resp.user, "user_metadata", None) or {}
+    ai_consent = bool(raw_meta.get("ai_health_consent", False))
+    return CurrentUser(
+        id=resp.user.id,
+        email=resp.user.email,
+        token=creds.credentials,
+        ai_health_consent=ai_consent,
+    )
 
 
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]

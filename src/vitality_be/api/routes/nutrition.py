@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
+from vitality_be.core.consent import require_ai_health_consent
 from vitality_be.core.limits import GateBusy, RateLimitExceeded, get_gate, get_rate_limiter
 from vitality_be.core.security import CurrentUserDep
 from vitality_be.db.supabase1 import UserDbDep
@@ -28,7 +29,7 @@ def enforce_rate_limit(user: CurrentUserDep) -> None:
 @router.post(
     "/nutrition/estimate-meal",
     response_model=MealEstimateResponse,
-    dependencies=[Depends(enforce_rate_limit)],
+    dependencies=[Depends(enforce_rate_limit), Depends(require_ai_health_consent)],
 )
 async def estimate_meal(
     body: MealEstimateRequest,

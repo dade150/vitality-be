@@ -113,7 +113,7 @@ async def export_my_personal_data(
     reports_rows = await _safe_select(
         user_db,
         "patient_reports",
-        "id, source_name, report_type, clean_summary, extracted_params, report_at, created_at",
+        "id, source_name, source_path, report_type, clean_summary, content, extracted_params, report_at, created_at",
     )
     sessions_rows = await _safe_select(
         user_db,
@@ -125,12 +125,17 @@ async def export_my_personal_data(
         "chat_message",
         "id, session_id, role, content, created_at",
     )
+    logs_rows = await _safe_select(
+        user_db,
+        "app_logs",
+        "id, level, message, route, created_at",
+    )
 
     export_bundle = {
         "metadata": {
-            "application": "Vitality Assist",
+            "application": "diaLog2",
             "gdpr_reference": "Art. 20 Regolamento (UE) 2016/679 (Diritto alla portabilità dei dati)",
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "user_id": user.id,
             "email": user.email,
@@ -151,11 +156,12 @@ async def export_my_personal_data(
             "sessions": sessions_rows,
             "messages": messages_rows,
         },
+        "application_logs": logs_rows,
     }
 
     logger.info("Export portabilità dati GDPR Art. 20 generato user={}", user.id)
     json_bytes = json.dumps(export_bundle, ensure_ascii=False, indent=2, default=str).encode("utf-8")
-    filename = f"Vitality_Assist_Dati_GDPR_{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"
+    filename = f"diaLog2_Dati_GDPR_{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"
 
     return Response(
         content=json_bytes,
