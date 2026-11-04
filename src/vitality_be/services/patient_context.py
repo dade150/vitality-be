@@ -63,20 +63,33 @@ _DOCTOR_MENTION_RE = re.compile(
     r"\s+[A-ZÀ-Ú][a-zà-ú']+(?:\s+[A-ZÀ-Ú][a-zà-ú']+)?\b"
 )
 _HOSPITAL_RE = re.compile(
-    r"\b(?:"
-    r"ospedale(?:\s+civile|\s+maggiore|\s+san\b|\s+santa\b|\s+s\.)?|"
-    r"policlinico|clinica|casa\s+di\s+cura|irccs|"
-    r"asl\b|ausl\b|asst\b|aou\b|ao\b|ulss\b|ats\b|"
-    r"azienda\s+(?:ospedaliera|sanitaria|usl|ulss)(?:\s+universitaria)?|"
-    r"laboratorio(?:\s+analisi|\s+medico|\s+clinico)?"
-    r")\s+[A-ZÀ-Ú0-9][A-Za-zÀ-ú0-9'’.\-]*(?:\s+[A-ZÀ-Ú0-9][A-Za-zÀ-ú0-9'’.\-]*){0,4}",
-    re.IGNORECASE,
+    r"\b(?i:"
+    r"(?:ospedale(?:\s+civile|\s+maggiore|\s+san\b|\s+santa\b|\s+s\.)?|policlinico|casa\s+di\s+cura|irccs|asl\b|ausl\b|asst\b|aou\b|ao\b|ulss\b|ats\b|azienda\s+(?:ospedaliera|sanitaria|usl|ulss)(?:\s+universitaria)?)\s+(?:(?:di|del|della|dei|san|santa)\s+)?"
+    r"|"
+    r"(?:clinica|laboratorio(?:\s+analisi|\s+medico|\s+clinico)?)\s+(?:(?:san|santa)\s+)?"
+    r")"
+    r"[A-ZÀ-Ú0-9][A-Za-zÀ-ú0-9'’.\-]*(?:\s+[A-ZÀ-Ú0-9][A-Za-zÀ-ú0-9'’.\-]*){0,4}\b"
+)
+_BIRTH_DATE_RE = re.compile(
+    r"\b(?i:nat[oa](?:/[oa])?|data\s+di\s+nascita|luogo\s+e\s+data\s+di\s+nascita)"
+    r"(?:\s+(?:a|in)\s+[A-ZÀ-Úa-zà-ú'’\-]+)?"
+    r"(?:\s+(?:il|del))?\s*[:.]?\s*"
+    r"\b\d{1,2}[/\-.]\d{1,2}[/\-.](?:19\d{2}|20\d{2})\b"
+)
+_RELATIVE_MENTION_RE = re.compile(
+    r"\b(?P<rel>(?i:moglie|marito|figli[oa]|fratello|sorella|padre|madre|caregiver|convivente|parente))"
+    r"\s+(?P<name>[A-ZÀ-Ú][a-zà-ú'’]+(?:\s+[A-ZÀ-Ú][a-zà-ú'’]+)?)\b"
+)
+_TABULAR_PATIENT_HEADER_RE = re.compile(
+    r"(?im)^[ \t]*[A-ZÀ-Ú]{2,}\s+[A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,})?\s+(?:[MF]|maschio|femmina)?\s*\d{1,2}[/\-.]\d{1,2}[/\-.](?:19\d{2}|20\d{2}).*$"
 )
 _REPORT_HEADER_PII_RE = re.compile(
-    r"(?im)^[ \t]*(?:paziente|assistito/a?|intestatario|sig\.?(?:ra)?|cognome\s+e\s+nome|"
-    r"nato/a?\s+(?:a|il)|luogo\s+e\s+data\s+di\s+nascita|residente\s+(?:a|in)|"
+    r"(?im)^[ \t]*(?:"
+    r"paziente|assistito(?:/[ao])?|intestatario|sig\.?(?:ra)?|cognome(?:\s+e\s+nome)?|nome\s+paziente|"
+    r"nat[oa](?:/[oa])?(?:\s+(?:a|il))?|luogo\s+e\s+data\s+di\s+nascita|data\s+di\s+nascita|residente\s+(?:a|in)|"
     r"domicilio|cod\.?\s*fisc\.?|codice\s+fiscale|tessera\s+sanitaria|"
-    r"impegnativa\s+n\.?|accettazione\s+n\.?|id\s+campione|barcode)\s*[:.]\s*[^\r\n]+$"
+    r"impegnativa\s+n\.?|accettazione\s+n\.?|id\s+campione|barcode"
+    r")(?:\s*[:.]\s*|\s+)[^\r\n]+$"
 )
 
 # Normalizzazione dei tipi di esame in `diabetes_data.metric_type` (gestisce i duplicati dell'enum)
@@ -235,6 +248,8 @@ def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = No
     cleaned = _PHONE_RE.sub("[TELEFONO_RIMOSSO]", cleaned)
     cleaned = _ADDRESS_RE.sub("[INDIRIZZO_RIMOSSO]", cleaned)
     cleaned = _HOSPITAL_RE.sub("[STRUTTURA_SANITARIA_RIMOSSA]", cleaned)
+    cleaned = _BIRTH_DATE_RE.sub("[DATA_NASCITA_RIMOSSA]", cleaned)
+    cleaned = _RELATIVE_MENTION_RE.sub(r"\g<rel> [FAMILIARE_RIMOSSO]", cleaned)
 
     if masking_map is not None:
         # Se il cognome compare nel testo, lo oscuriamo prima del nome
@@ -293,6 +308,7 @@ def scrub_for_db_storage(text: str | None) -> str:
     cleaned = _PHONE_RE.sub("[TELEFONO_RIMOSSO]", cleaned)
     cleaned = _ADDRESS_RE.sub("[INDIRIZZO_RIMOSSO]", cleaned)
     cleaned = _HOSPITAL_RE.sub("[STRUTTURA_SANITARIA_RIMOSSA]", cleaned)
+    cleaned = _BIRTH_DATE_RE.sub("[DATA_NASCITA_RIMOSSA]", cleaned)
     return cleaned.strip()
 
 
@@ -308,8 +324,9 @@ def scrub_report_text(
     if not text:
         return "", masking_map or PatientMaskingMap()
 
-    # 1. Rimozione selettiva delle righe di intestazione anagrafica tipiche dei referti
+    # 1. Rimozione selettiva delle righe di intestazione anagrafica e tabelle anagrafiche dei referti
     no_header = _REPORT_HEADER_PII_RE.sub("[INTESTAZIONE_ANAGRAFICA_RIMOSSA]", str(text))
+    no_header = _TABULAR_PATIENT_HEADER_RE.sub("[INTESTAZIONE_ANAGRAFICA_RIMOSSA]", no_header)
 
     # 2. Mascheramento dinamico medici e scrubbing completo (CF, nome, tel, ospedale, indirizzo)
     return mask_user_text_with_dynamic_tokens(no_header, masking_map)
@@ -859,17 +876,21 @@ async def fetch_patient_context(
     started = time.monotonic()
     ref_now = now or datetime.now(timezone.utc)
 
-    (
-        user_rows,
-        profile_rows,
-        diabetes_rows,
-        therapies_rows,
-        therapy_logs_rows,
-        meals_rows,
-        activities_rows,
-        appointments_rows,
-        reports_rows,
-    ) = await asyncio.to_thread(_fetch_bundle_or_tables_sync, user_db)
+    try:
+        (
+            user_rows,
+            profile_rows,
+            diabetes_rows,
+            therapies_rows,
+            therapy_logs_rows,
+            meals_rows,
+            activities_rows,
+            appointments_rows,
+            reports_rows,
+        ) = _fetch_bundle_or_tables_sync(user_db)
+    except Exception as fetch_exc:
+        logger.warning("patient_context fetch fallito: {}", type(fetch_exc).__name__)
+        user_rows = profile_rows = diabetes_rows = therapies_rows = therapy_logs_rows = meals_rows = activities_rows = appointments_rows = reports_rows = []
 
     first_name: str | None = None
     last_name: str | None = None

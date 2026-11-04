@@ -84,6 +84,28 @@ def test_process_valid_png_and_pdf():
     assert pdf_res.mime_type == "application/pdf"
 
 
+def test_strip_pdf_metadata():
+    import pymupdf
+    doc = pymupdf.open()
+    doc.new_page()
+    doc.set_metadata({"author": "Mario Rossi", "title": "Referto Clinico Riservato"})
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    b64 = base64.b64encode(pdf_bytes).decode()
+    res = process_and_sanitize_attachment(
+        data_base64=b64,
+        mime_type="application/pdf",
+        kind="medical_report",
+    )
+    assert res.exif_stripped is True
+
+    clean_doc = pymupdf.open(stream=res.clean_bytes, filetype="pdf")
+    assert clean_doc.metadata.get("author") == ""
+    assert clean_doc.metadata.get("title") == ""
+    clean_doc.close()
+
+
 def test_reject_magic_bytes_mismatch():
     # File di testo mascherato da JPEG
     fake_jpeg = b"Ciao sono un file di testo normale"

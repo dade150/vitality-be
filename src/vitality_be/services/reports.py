@@ -325,7 +325,7 @@ async def process_and_ingest_report(
         file_path=saved_file_path,
         report_type=extraction.report_type,
         report_at=report_at,
-        clean_summary=extraction.clean_summary,
+        clean_summary=extraction.clean_summary_display or extraction.clean_summary,
         extraction_method=extraction.extraction_method,
         extracted=extracted_items,
         proposed_entries=final_proposals,

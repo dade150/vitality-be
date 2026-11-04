@@ -347,7 +347,8 @@ class ReportExtractionResult(BaseModel):
     is_medical_report: bool = True
     report_type: CanonicalReportType = "ANALISI_SANGUE"
     report_at: str | None = None
-    clean_summary: str = ""
+    clean_summary: str = Field("", description="Sintesi clinica de-identificata (GDPR Art. 9) per DB ed embedding")
+    clean_summary_display: str = Field("", description="Sintesi clinica per visualizzazione UI a schermo")
     scrubbed_content: str = ""
     extraction_method: Literal["pymupdf_native", "gemini_vision", "text"] = "pymupdf_native"
     proposed_entries: list[ProposedEntry] = Field(default_factory=list)

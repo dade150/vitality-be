@@ -638,12 +638,13 @@ async def extract_from_report(
 
     # Sanitizzazione difensiva di ritorno su clean_summary e note
     clean_summary_scrubbed, updated_map = scrub_report_text(batch.clean_summary, updated_map)
-    clean_summary_final = rehydrate_assistant_reply(clean_summary_scrubbed, updated_map).strip()
+    clean_summary_deidentified = clean_summary_scrubbed.strip()
+    clean_summary_rehydrated = rehydrate_assistant_reply(clean_summary_scrubbed, updated_map).strip()
 
     clean_findings_scrubbed, _ = scrub_report_text(batch.clinical_findings_text, updated_map)
 
-    # Il testo de-identificato completo da archiviare e vettorizzare
-    scrubbed_content = scrubbed_text or clean_findings_scrubbed or clean_summary_final
+    # Il testo de-identificato completo da archiviare e vettorizzare (GDPR Art. 9: zero PII nel DB o embedding)
+    scrubbed_content = scrubbed_text or clean_findings_scrubbed or clean_summary_deidentified
 
     r_type = batch.report_type or "ANALISI_SANGUE"
     is_med = bool(batch.is_medical_report)
@@ -653,7 +654,8 @@ async def extract_from_report(
             is_medical_report=is_med,
             report_type=r_type,  # type: ignore[arg-type]
             report_at=report_iso,
-            clean_summary=clean_summary_final,
+            clean_summary=clean_summary_deidentified,
+            clean_summary_display=clean_summary_rehydrated or clean_summary_deidentified,
             scrubbed_content=scrubbed_content,
             extraction_method=extraction_method,
             proposed_entries=proposals,
@@ -663,7 +665,8 @@ async def extract_from_report(
             is_medical_report=is_med,
             report_type="ALTRO",
             report_at=report_iso,
-            clean_summary=clean_summary_final,
+            clean_summary=clean_summary_deidentified,
+            clean_summary_display=clean_summary_rehydrated or clean_summary_deidentified,
             scrubbed_content=scrubbed_content,
             extraction_method=extraction_method,
             proposed_entries=proposals,

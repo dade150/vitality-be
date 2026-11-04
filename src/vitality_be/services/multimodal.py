@@ -236,6 +236,26 @@ def _check_pdf_safety(data: bytes) -> None:
                 )
 
 
+def _sanitize_pdf_metadata(pdf_bytes: bytes) -> tuple[bytes, bool]:
+    """Rimuove metadati identificativi dal PDF (Author, Title, Subject, Producer, Creator, XMP/XML)."""
+    if not pdf_bytes:
+        return pdf_bytes, False
+    try:
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        had_meta = bool(doc.metadata and any(v for k, v in doc.metadata.items() if k != "format" and v))
+        if hasattr(doc, "has_xml_metadata") and doc.has_xml_metadata:
+            had_meta = True
+        doc.set_metadata({})
+        if hasattr(doc, "del_xml_metadata"):
+            doc.del_xml_metadata()
+        clean_bytes = doc.tobytes(garbage=3, deflate=True)
+        doc.close()
+        return clean_bytes, had_meta
+    except Exception as exc:
+        logger.warning("Sanitizzazione metadati PDF fallita (conservati byte originali): {}", exc)
+        return pdf_bytes, False
+
+
 def inspect_pdf_in_ram(pdf_bytes: bytes, *, max_pages: int = 15) -> PdfInspectionResult:
     """Ispeziona il PDF interamente in memoria RAM tramite PyMuPDF.
 
@@ -357,7 +377,7 @@ def process_raw_attachment_bytes(
         clean_bytes, exif_stripped = _sanitize_image_metadata(raw_bytes, mime_type)
     elif mime_type == "application/pdf":
         _check_pdf_safety(raw_bytes)
-        clean_bytes = raw_bytes
+        clean_bytes, exif_stripped = _sanitize_pdf_metadata(raw_bytes)
     else:
         clean_bytes = raw_bytes
 

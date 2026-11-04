@@ -248,7 +248,7 @@ def test_extract_from_report_text_and_photo_reuses_glycemic_lipid_tools_and_scru
         report_type="ANALISI_SANGUE",
         report_date_iso="2026-10-25T08:30:00+01:00",
         clean_summary=(
-            "Paziente Mario Rossi (CF RSSMRA60E20H501Z, tel 3331234567): "
+            "Referto clinico di Mario Rossi (CF RSSMRA60E20H501Z, tel 3331234567): "
             "profilo glicemico con HbA1c 6.7%, profilo lipidico con Colesterolo Totale 188 mg/dL, "
             "HDL 50 mg/dL, LDL 104 mg/dL, Trigliceridi 135 mg/dL, eGFR 82 mL/min/1.73m²."
         ),
@@ -283,10 +283,12 @@ def test_extract_from_report_text_and_photo_reuses_glycemic_lipid_tools_and_scru
     assert llm.structured_calls[0]["media_bytes"] == fake_jpeg
     assert llm.structured_calls[0]["media_mime_type"] == "image/jpeg"
 
-    # Verifica che la sintesi abbia rimosso CF, telefono e cognome
+    # Verifica che la sintesi abbia rimosso CF, telefono e cognome (A3: clean_summary de-identificata, display re-idratata)
     assert "RSSMRA60E20H501Z" not in result.clean_summary
     assert "3331234567" not in result.clean_summary
     assert "Rossi" not in result.clean_summary
+    assert "Mario" not in result.clean_summary
+    assert "Mario" in result.clean_summary_display
     assert result.report_type == "ANALISI_SANGUE"
 
     # Verifica che tutti gli 8 valori (profilo glicemico, lipidico/colesterolo e renale) siano pronti per il FE
@@ -371,3 +373,46 @@ def test_chat_reply_with_proposals_rehydrates_doctor_and_degrades_gracefully(mon
     )
     assert reply_ok == "Risposta comunque consegnata."
     assert empty_props == []
+
+
+def test_pii_scrubbing_advances_birthdate_relatives_and_hospital_filter():
+    from vitality_be.services.patient_context import scrub_free_text, scrub_report_text
+
+    # A6: Non deve censurare termini clinici legittimi
+    clinical_text = "Valutazione clinica generale buona. Laboratorio analisi del sangue di routine. Risposta clinica positiva."
+    scrubbed_clin = scrub_free_text(clinical_text)
+    assert "[STRUTTURA_SANITARIA_RIMOSSA]" not in scrubbed_clin
+    assert "clinica generale" in scrubbed_clin
+    assert "analisi del sangue" in scrubbed_clin
+
+    # A6: Ma deve censurare i veri ospedali/cliniche
+    hosp_text = "Ricoverato presso Ospedale San Raffaele e poi visitato alla Clinica Columbus."
+    scrubbed_hosp = scrub_free_text(hosp_text)
+    assert "San Raffaele" not in scrubbed_hosp
+    assert "Columbus" not in scrubbed_hosp
+    assert "[STRUTTURA_SANITARIA_RIMOSSA]" in scrubbed_hosp
+
+    # A5: Date di nascita senza due punti o nel corpo del testo
+    birth_text = "Paziente nato il 01/01/1960 a Roma. Nata a Milano il 12/03/1958. Data di nascita 15/05/1975."
+    scrubbed_birth = scrub_free_text(birth_text)
+    assert "01/01/1960" not in scrubbed_birth
+    assert "12/03/1958" not in scrubbed_birth
+    assert "15/05/1975" not in scrubbed_birth
+    assert "[DATA_NASCITA_RIMOSSA]" in scrubbed_birth
+
+    # A5: Nomi di familiari e terzi rimossi preservando la relazione clinica
+    rel_text = "Accompagnato dalla moglie Maria Rossi. Il figlio Luca riferisce ipoglicemie. Madre diabetica."
+    scrubbed_rel = scrub_free_text(rel_text)
+    assert "Maria Rossi" not in scrubbed_rel
+    assert "Luca" not in scrubbed_rel
+    assert "moglie [FAMILIARE_RIMOSSO]" in scrubbed_rel
+    assert "figlio [FAMILIARE_RIMOSSO]" in scrubbed_rel
+    assert "Madre diabetica" in scrubbed_rel
+
+    # A5: Intestazioni tabellari tipiche dei referti
+    tab_report = "ROSSI MARIO  M  01/01/1960  RSSMRA60A01H501Z\nGLICEMIA BASE: 110 mg/dL"
+    scrubbed_tab, _ = scrub_report_text(tab_report)
+    assert "ROSSI MARIO" not in scrubbed_tab
+    assert "RSSMRA60A01H501Z" not in scrubbed_tab
+    assert "01/01/1960" not in scrubbed_tab
+    assert "GLICEMIA BASE: 110 mg/dL" in scrubbed_tab
