@@ -35,11 +35,7 @@ class MeResponse(BaseModel):
 
 
 async def _run_sync_or_thread(fn):
-    try:
-        asyncio.get_running_loop()
-        res = await asyncio.to_thread(fn)
-    except RuntimeError:
-        res = fn()
+    res = fn()
     if inspect.isawaitable(res):
         return await res
     return res
@@ -182,22 +178,61 @@ async def delete_my_account_and_data(
 ) -> Response:
     """Esercizio del Diritto all'Oblio / Cancellazione (GDPR Art. 17).
 
-    Elimina definitivamente tutti i dati sanitari, il diario, i referti, la cronologia chat
-    e l'account dell'utente autenticato.
+    Elimina definitivamente tutti i dati sanitari, il diario, i referti, la cronologia chat,
+    i file nello storage e l'account dell'utente autenticato.
     """
+    # 1. Cancellazione preventiva dei file archiviati nello Storage privato via API Supabase (B1)
+    if hasattr(user_db, "storage"):
+        try:
+            bucket = user_db.storage.from_("patient-reports")
+            files_resp = await _run_sync_or_thread(lambda: bucket.list(user.id))
+            if files_resp and isinstance(files_resp, list):
+                paths_to_remove = [
+                    f"{user.id}/{item['name']}"
+                    for item in files_resp
+                    if isinstance(item, dict) and item.get("name")
+                ]
+                if paths_to_remove:
+                    await _run_sync_or_thread(lambda: bucket.remove(paths_to_remove))
+                    logger.info("Rimossi {} file da patient-reports per user={}", len(paths_to_remove), user.id)
+        except Exception as st_exc:
+            logger.warning("Cancellazione file Storage ignorata/fallita user={} exc={}", user.id, type(st_exc).__name__)
+
+    # 2. Eliminazione definitiva transazionale via RPC (elimina dati + auth.users)
+    rpc_ok = False
     if hasattr(user_db, "rpc"):
         try:
             await _run_sync_or_thread(lambda: user_db.rpc("delete_own_account", {}).execute())
+            rpc_ok = True
             logger.info("Account e dati sanitari eliminati tramite RPC delete_own_account user={}", user.id)
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         except Exception as rpc_exc:
             logger.warning(
-                "RPC delete_own_account non disponibile, avvio cancellazione tabellare RLS user={} exc={}",
+                "RPC delete_own_account fallita, avvio pulizia tabellare di sicurezza user={} exc={}",
                 user.id,
                 type(rpc_exc).__name__,
             )
 
+    # 3. Fallback tabellare per dati sanitari se l'RPC non era disponibile o è fallita
     if hasattr(user_db, "table"):
+        # Cancella prima i messaggi associati alle chat session dell'utente (B2)
+        try:
+            s_resp = await _run_sync_or_thread(
+                lambda: user_db.table("chat_session").select("id").eq("user_id", user.id).execute()
+            )
+            s_data = getattr(s_resp, "data", None)
+            if s_data and isinstance(s_data, list):
+                for s in s_data:
+                    if isinstance(s, dict) and s.get("id"):
+                        try:
+                            await _run_sync_or_thread(
+                                lambda sid=s["id"]: user_db.table("chat_message").delete().eq("session_id", sid).execute()
+                            )
+                        except Exception:
+                            pass
+        except Exception as cm_exc:
+            logger.debug("Delete fallback chat_message ignorata exc={}", type(cm_exc).__name__)
+
         tables_by_user_id = (
             "chat_session",
             "patient_report_chunks",
@@ -208,6 +243,7 @@ async def delete_my_account_and_data(
             "meals",
             "physical_activities",
             "appointments",
+            "app_logs",
             "user_settings",
             "profile",
         )
@@ -226,5 +262,11 @@ async def delete_my_account_and_data(
         except Exception as exc:
             logger.debug("Delete fallback table=user ignorata exc={}", type(exc).__name__)
 
-    logger.info("Dati sanitari e profilo eliminati per user={}", user.id)
+    logger.warning("Pulizia tabellare completata ma identità auth non eliminata per user={}", user.id)
+    if not rpc_ok:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Impossibile completare l'eliminazione definitiva dell'account (auth.users). Riprova.",
+        )
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
