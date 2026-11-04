@@ -30,7 +30,13 @@ class FakeAuth:
         def get_user(jwt: str):
             if jwt != GOOD_TOKEN:
                 raise AuthApiError("invalid", 401, None)
-            return pytypes.SimpleNamespace(user=pytypes.SimpleNamespace(id=USER_ID, email="a@b.it"))
+            return pytypes.SimpleNamespace(
+                user=pytypes.SimpleNamespace(
+                    id=USER_ID,
+                    email="a@b.it",
+                    user_metadata={"ai_health_consent": True},
+                )
+            )
 
 
 class FakeProvider:
