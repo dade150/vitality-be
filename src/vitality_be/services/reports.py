@@ -1,9 +1,10 @@
 """Servizio di Ingestion e Vettorizzazione Referti Medici (Pipeline a 4 Step).
 
-Step 1: Ispezione PDF in RAM (PyMuPDF): estrazione testo/tabelle vettoriali a costo 0 e zero rete.
-Step 2: De-identificazione & Scrubbing PII (GDPR Art. 9): rimozione CF, intestazioni anagrafiche, nomi e strutture sanitarie.
-Step 3: Estrazione Strutturata (Pydantic v2): estrazione parametri ematochimici e sintesi de-identificata.
-Step 4: Embedding Vettoriale (Gemini Embedding 2 a 1536 dim) e persistenza in public.patient_reports sotto RLS.
+Step 1: Ispezione PDF in RAM (PyMuPDF): estrazione testo/tabelle vettoriali a costo zero e senza rete per PDF digitali; fallback su Gemini Multimodale EU per scansioni/foto.
+Step 2: De-identificazione & Scrubbing PII (GDPR Art. 9) sul testo estratto: rimozione CF, intestazioni anagrafiche, nomi e strutture sanitarie.
+Step 3: Estrazione Strutturata (Pydantic v2): estrazione parametri ematochimici e sintesi clinica oggettiva de-identificata.
+Step 4: Embedding Vettoriale (Gemini Embedding 2 a 1536 dim) sul solo testo de-identificato e persistenza in public.patient_reports sotto RLS.
+Step 4 bis: Archiviazione del file originale (con metadati EXIF/GPS rimossi) nel bucket privato Supabase 'patient-reports/{user_id}/' protetto da RLS, per consultazione da parte dell'utente.
 """
 from __future__ import annotations
 

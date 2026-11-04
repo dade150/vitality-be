@@ -73,7 +73,11 @@ async def _archive_verified_chat_report(
     fallback_proposals: list[ProposedEntry] | None = None,
     fallback_text: str | None = None,
 ) -> list[ProposedEntry]:
-    """Archivia in `public.patient_reports` un referto medico verificato allegato in chat."""
+    """Archivia in `public.patient_reports` un referto medico verificato allegato in chat.
+
+    Il testo e l'embedding salvati sul DB sono de-identificati (scrubbing PII); se disponibile lo Storage,
+    il file originale (con metadati EXIF/GPS rimossi) viene conservato nel bucket privato dell'utente per il download.
+    """
     is_med = bool(rep and rep.is_medical_report)
     proposals = list((rep.proposed_entries if rep else None) or fallback_proposals or [])
     clean_sum = (rep.clean_summary if rep else None) or ""

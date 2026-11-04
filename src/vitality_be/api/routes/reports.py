@@ -55,8 +55,13 @@ async def upload_report(
 ) -> ReportUploadResponse:
     """Caricamento di un referto clinico con estrazione strutturata dei parametri e ingestion vettoriale.
 
-    Supporta PDF digitali nativi (PyMuPDF in RAM, zero rete), PDF scansionati e foto tramite Vertex AI EU.
-    I dati identificativi (GDPR Art. 9) vengono sempre rimossi prima del salvataggio nel Vector DB.
+    - PDF digitali nativi: testo e tabelle estratti in memoria RAM con PyMuPDF, con scrubbing PII (GDPR Art. 9)
+      prima dell'invio al modello linguistico (zero byte binari inviati).
+    - PDF scansionati e foto: inoltrati in modalità multimodale protetta a Vertex AI (regione Unione Europea).
+    - Storage privato: una copia del documento (con metadati EXIF/GPS rimossi) viene conservata nel bucket privato
+      Supabase 'patient-reports' isolato da RLS (auth.uid()), per consentirne la consultazione e il download al paziente.
+    - Vector DB: nel database vettoriale e nei dati clinici di testo viene memorizzato esclusivamente il contenuto
+      clinico de-identificato e la sintesi oggettiva.
     """
     s = get_settings()
 
