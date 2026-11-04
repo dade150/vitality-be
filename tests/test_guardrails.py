@@ -174,6 +174,8 @@ class TestLevel1DeterministicRules:
             "Oggi ho fatto solo 50 passi",
             "Ho pagato la visita 45 euro",
             "Ho comprato una scatola da 50 compresse",
+            "Ho fissato la visita per il 28 novembre alle 10:30",
+            "Oggi ho misurato la glicemia a 122 mg/dL e la pressione a 120/80 mmHg. A pranzo ho mangiato un piatto di pasta al pomodoro con insalata, poi ho fatto 45 minuti di camminata. Ho già preso la mia compressa di metformina da 500 mg, mi sono pesato a 75 kg per 175 cm di altezza e ho fissato il controllo diabetologico con il Dott. Rossi per il 28 novembre alle 10:30.",
         ],
     )
     def test_non_glucose_number_exclusions(self, query: str):

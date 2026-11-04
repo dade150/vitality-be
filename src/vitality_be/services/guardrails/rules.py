@@ -54,14 +54,18 @@ class EmergencyMatch:
 
 # Keyword o pattern glicemici nel contesto circostante
 _GLUCOSE_CONTEXT_WORDS = (
-    r"glicemi[ae]|glucometr[oi]|sensor[ei]|zuccher[oi]|misurat[oa]|"
-    r"valore|sces[ao]\s+a|salit[ao]\s+a|[eè]\s+(?:a|sces[ao]|salit[ao])|lettura"
+    r"\b(?:glicemi[ae]|glucometr[oi]|sensor[ei]|zuccher[oi](?:\s+nel\s+sangue)?|destro|stick|dextro|"
+    r"sces[ao]\s+a|salit[ao]\s+a|valore|lettura)\b"
 )
 
-# Unità NON glicemiche da escludere assolutamente (anni, minuti, grammi, kg, dosaggi farmaci...)
+# Unità e contesti NON glicemici da escludere assolutamente (anni, minuti, grammi, kg, date, mesi, orari, pressione...)
 _NON_GLUCOSE_UNITS_RE = re.compile(
-    r"^\s*(?:anni|ann[io]|minuti|min|secondi|sec|ore|h\b|g\b|gr\b|grammi|kg|chili|chilogrammi|"
-    r"passi|km|metri|m\b|%|percento|unit[aà]|ui\b|compresse|pastiglie|bustine|euro|€)\b",
+    r"^\s*(?:anni|ann[io]|minuti|min|secondi|sec|ore|h\b|:\d{2}\b|g\b|gr\b|grammi|kg|chili|chilogrammi|"
+    r"cm|centimetri|mm\b|millimetri|passi|km|metri|m\b|%|percento|unit[aà]|ui\b|compresse|pastiglie|bustine|euro|€|"
+    r"mmhg|pressione|"
+    r"gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre|"
+    r"[/-]\d{1,2}\b|"
+    r"giorn[io]|settiman[ae]|mes[ei])\b",
     re.IGNORECASE,
 )
 
