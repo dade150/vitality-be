@@ -2,7 +2,12 @@ import json
 import pytest
 from fastapi import HTTPException
 
-from vitality_be.api.routes.me import delete_my_account_and_data, export_my_personal_data
+from vitality_be.api.routes.me import (
+    ConsentUpdateRequest,
+    delete_my_account_and_data,
+    export_my_personal_data,
+    update_my_ai_health_consent,
+)
 from vitality_be.core.consent import require_ai_health_consent
 from vitality_be.core.security import CurrentUser
 
@@ -178,5 +183,18 @@ def test_require_ai_health_consent_forbidden_when_false():
 
     assert exc_info.value.status_code == 403
     assert "GDPR Art. 9" in exc_info.value.detail
+
+
+def test_update_ai_health_consent_success():
+    user = CurrentUser(id="user-toggle", email="toggle@test.it", token="tok", ai_health_consent=True)
+    db = FakeUserDb(rpc_success=True)
+
+    # Revoca del consenso
+    req = ConsentUpdateRequest(ai_health_consent=False)
+    res = run_coro(update_my_ai_health_consent(body=req, user=user, user_db=db))
+    assert res["status"] == "ok"
+    assert res["ai_health_consent"] is False
+    assert db.rpc_called is True
+
 
 

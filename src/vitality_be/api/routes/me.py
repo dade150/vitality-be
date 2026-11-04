@@ -276,3 +276,55 @@ async def delete_my_account_and_data(
         )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+class ConsentUpdateRequest(BaseModel):
+    ai_health_consent: bool
+
+
+@router.patch(
+    "/me/consent",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(enforce_rate_limit)],
+)
+async def update_my_ai_health_consent(
+    body: ConsentUpdateRequest,
+    user: CurrentUserDep,
+    user_db: UserDbDep,
+) -> dict[str, Any]:
+    """Revoca o concessione del Consenso Esplicito ai Dati Sanitari con IA (GDPR Art. 7.3 e Art. 9).
+
+    Permette all'interessato di revocare in qualsiasi momento il trattamento dei dati
+    sanitari tramite intelligenza artificiale mantenendo intatto il proprio account
+    e il diario clinico personale.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    rpc_ok = False
+    if hasattr(user_db, "rpc"):
+        try:
+            await _run_sync_or_thread(
+                lambda: user_db.rpc(
+                    "set_ai_health_consent", {"p_consent": body.ai_health_consent}
+                ).execute()
+            )
+            rpc_ok = True
+        except Exception as rpc_exc:
+            logger.debug("RPC set_ai_health_consent degradata exc={}", type(rpc_exc).__name__)
+
+    if not rpc_ok and hasattr(user_db, "table"):
+        payload = {
+            "ai_health_consent": body.ai_health_consent,
+            "consent_revoked_at": None if body.ai_health_consent else now_iso,
+        }
+        if body.ai_health_consent:
+            payload["ai_health_consent_at"] = now_iso
+        await _run_sync_or_thread(
+            lambda: user_db.table("user").update(payload).eq("id", user.id).execute()
+        )
+
+    return {
+        "status": "ok",
+        "ai_health_consent": body.ai_health_consent,
+        "updated_at": now_iso,
+    }
+
