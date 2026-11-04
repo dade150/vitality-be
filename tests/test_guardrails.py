@@ -126,6 +126,8 @@ class MockClassifierLLM(LLMProvider):
         response_schema: type[Any],
         max_output_tokens: int | None = None,
     ) -> Any:
+        self.last_messages = list(messages)
+        self.last_system = system
         if self._fail_classification:
             raise RuntimeError("Simulated structured generation failure")
         return self._classification
@@ -147,6 +149,9 @@ class TestLevel1DeterministicRules:
             ("Ho misurato 45 di zuccheri", "severe_hypoglycemia"),
             ("Lettura sensore: 52 mg/dL", "severe_hypoglycemia"),
             ("La mia glicemia è a 30", "severe_hypoglycemia"),
+            ("Glicemia a 2.4 mmol/L", "severe_hypoglycemia"),
+            ("Valore sensore: 2,7 mmol/l", "severe_hypoglycemia"),
+            ("Ho 2.5 di glicemia", "severe_hypoglycemia"),
         ],
     )
     def test_hypoglycemia_extreme_values(self, query: str, expected_trigger: str):
@@ -183,6 +188,8 @@ class TestLevel1DeterministicRules:
             "Ho misurato la glicemia ed è a 520",
             "Valore sensore glicemia: HI",
             "Il glucometro segna HIGH",
+            "Glicemia a 24.5 mmol/L",
+            "Valore sensore: 26 mmol/l",
         ],
     )
     def test_critical_hyperglycemia(self, query: str):
@@ -283,13 +290,36 @@ class TestLevel2SemanticClassifier:
     """Test del classificatore semantico, fast-paths e degradazione controllata."""
 
     def test_fast_path_attachment(self):
-        """Se è presente un allegato (foto/PDF), fast-path a 0 ms senza chiamare LLM."""
+        """Se è presente un allegato con didascalia generica, fast-path a 0 ms senza chiamare LLM."""
         mock_llm = MockClassifierLLM()
         res = _run_coro_sync(classify_user_input(mock_llm, "ecco la foto", has_attachment=True))
         assert res.in_topic is True
         assert res.intent == "vitals"
         assert res.has_loggable_data is True
         assert len(mock_llm.last_messages) == 0  # LLM non invocato!
+
+    def test_attachment_with_substantive_text_triggers_classification(self):
+        """Se è presente un allegato MA l'utente pone una domanda complessa/prescrittiva, L2 classifica il testo."""
+        mock_llm = MockClassifierLLM(
+            classification=GuardrailClassification(
+                in_topic=True,
+                intent="therapy",
+                is_medical_prescription_request=True,
+                emergency_risk=False,
+                has_loggable_data=False,
+            )
+        )
+        res = _run_coro_sync(
+            classify_user_input(
+                mock_llm,
+                "quante unità di insulina devo fare con questo piatto?",
+                has_attachment=True,
+            )
+        )
+        assert res.in_topic is True
+        assert res.is_medical_prescription_request is True
+        assert res.has_loggable_data is True  # Preservato perché c'è un allegato
+        assert len(mock_llm.last_messages) == 1  # L2 invocato correttamente!
 
     @pytest.mark.parametrize(
         "greeting",

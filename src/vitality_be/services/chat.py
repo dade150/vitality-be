@@ -866,26 +866,47 @@ async def stream_chat_pipeline(
 
             raw_stream = _single_chunk_stream()
 
+        def _sanitize_delta(text: str) -> str:
+            rehydrated = rehydrate_assistant_reply(text, masking_map)
+            # Rimuove prescrizioni o diagnosi vietate anche in tempo reale durante lo stream
+            out_check = check_and_sanitize_output(rehydrated)
+            # Rimuove il disclaimer qui se presente, perché verrà appeso formalmente solo alla fine
+            clean_res = out_check.sanitized_text.replace(PRESCRIPTION_DISCLAIMER, "")
+            return clean_res
+
         async for chunk in raw_stream:
             accumulated_raw.append(chunk)
             buffer += chunk
 
-            # Buffer di sicurezza anti-spezzamento placeholder (es: '{{NO' ... 'ME}}')
+            # 1. Buffer di sicurezza anti-spezzamento placeholder (es: '{{NO' ... 'ME}}')
             if "{{" in buffer and "}}" not in buffer[buffer.rfind("{{") :]:
                 safe_pos = buffer.rfind("{{")
                 ready_to_emit = buffer[:safe_pos]
                 buffer = buffer[safe_pos:]
             else:
-                ready_to_emit = buffer
-                buffer = ""
+                # 2. Sanitizzazione a confini di frase per intercettare imperativi vietati
+                # Cerca delimitatori naturali di frase: punto, esclamativo, interrogativo, a capo
+                delims = [buffer.rfind(".\n"), buffer.rfind(". "), buffer.rfind("!\n"), buffer.rfind("! "), buffer.rfind("?\n"), buffer.rfind("? "), buffer.rfind("\n")]
+                boundary = max(delims)
+                if boundary != -1:
+                    ready_to_emit = buffer[: boundary + 1]
+                    buffer = buffer[boundary + 1 :]
+                elif len(buffer) > 120 and " " in buffer:
+                    last_space = buffer.rfind(" ")
+                    ready_to_emit = buffer[:last_space]
+                    buffer = buffer[last_space:]
+                else:
+                    ready_to_emit = ""
 
             if ready_to_emit:
-                clean_chunk = rehydrate_assistant_reply(ready_to_emit, masking_map)
-                yield {"type": "delta", "text": clean_chunk}
+                clean_chunk = _sanitize_delta(ready_to_emit)
+                if clean_chunk:
+                    yield {"type": "delta", "text": clean_chunk}
 
         if buffer:
-            clean_chunk = rehydrate_assistant_reply(buffer, masking_map)
-            yield {"type": "delta", "text": clean_chunk}
+            clean_chunk = _sanitize_delta(buffer)
+            if clean_chunk:
+                yield {"type": "delta", "text": clean_chunk}
 
         raw_full_reply = "".join(accumulated_raw)
         rehydrated_full = rehydrate_assistant_reply(raw_full_reply, masking_map)

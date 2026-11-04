@@ -32,14 +32,14 @@ EMERGENCY_REPLY_GENERAL = (
 )
 
 JAILBREAK_REPLY = (
-    "Sono il tuo coach virtuale Vitality Assist e il mio compito è affiancarti in modo sicuro nell'autogestione "
+    "Sono il tuo coach virtuale diaLog2 e il mio compito è affiancarti in modo sicuro nell'autogestione "
     "quotidiana del diabete e dello stile di vita, nel rispetto delle linee guida cliniche. "
     "Non posso disattivare le regole di sicurezza né sostituirmi al medico. "
     "Come posso aiutarti oggi con l'alimentazione, il movimento o il monitoraggio della glicemia?"
 )
 
 OFF_TOPIC_REPLY = (
-    "Mi dispiace, su questo argomento non posso aiutarti: come tuo coach Vitality Assist mi occupo esclusivamente "
+    "Mi dispiace, su questo argomento non posso aiutarti: come tuo coach diaLog2 mi occupo esclusivamente "
     "di salute, gestione quotidiana del diabete, alimentazione, movimento e benessere. "
     "Vuoi parlare dei tuoi valori glicemici, di un pasto o delle tue abitudini quotidiane?"
 )
@@ -68,6 +68,12 @@ _NON_GLUCOSE_UNITS_RE = re.compile(
 # Unità o contesto esplicito di milligrammi/farmaco (es. metformina 500 mg, 850 mg, 1000 mg)
 _DRUG_DOSAGE_RE = re.compile(
     r"\b(?:metformina|farmaco|compressa|pastiglia|pillola|dosaggio|dose)\b",
+    re.IGNORECASE,
+)
+
+# Pattern per valori in mmol/L (standard internazionale/UK: < 3.0 mmol/L ipo severa, >= 22.0 iper critica)
+_MMOL_RE = re.compile(
+    r"\b(\d{1,2}(?:[.,]\d+)?)\s*(?:mmol\s*/\s*[lL]|millimol[ie](?:\s*/\s*[lL])?)\b",
     re.IGNORECASE,
 )
 
@@ -129,7 +135,26 @@ def check_emergency_input(text: str) -> EmergencyMatch | None:
             )
 
     # 2. Check Valori Estremi con disambiguazione contestuale
-    # Cerchiamo tutti i numeri nel testo
+    # A. Check esplicito per unità mmol/L (internazionali)
+    for mmol_match in _MMOL_RE.finditer(cleaned):
+        try:
+            val_mmol = float(mmol_match.group(1).replace(",", "."))
+            if 0.5 <= val_mmol < 3.0:
+                return EmergencyMatch(
+                    trigger_kind="severe_hypoglycemia",
+                    matched_text=mmol_match.group(0),
+                    reply=EMERGENCY_REPLY_HYPO,
+                )
+            elif val_mmol >= 22.0:
+                return EmergencyMatch(
+                    trigger_kind="critical_hyperglycemia",
+                    matched_text=mmol_match.group(0),
+                    reply=EMERGENCY_REPLY_GENERAL,
+                )
+        except ValueError:
+            pass
+
+    # B. Cerchiamo tutti i numeri interi (standard italiano mg/dL) nel testo
     for num_match in re.finditer(r"\b(\d{2,3})\b", cleaned):
         val_int = int(num_match.group(1))
         num_start = num_match.start()
@@ -177,6 +202,26 @@ def check_emergency_input(text: str) -> EmergencyMatch | None:
             matched_text="HI",
             reply=EMERGENCY_REPLY_GENERAL,
         )
+
+    # 4. Check valori decimali in contesto glicemico puro (es. "glicemia a 2.5", "sensore: 2,7")
+    for dec_match in re.finditer(r"\b([12][.,]\d)\b", cleaned):
+        try:
+            val_dec = float(dec_match.group(1).replace(",", "."))
+            if 0.5 <= val_dec < 3.0:
+                dec_start = dec_match.start()
+                dec_end = dec_match.end()
+                post_str = cleaned[dec_end : min(len(cleaned), dec_end + 25)]
+                if _NON_GLUCOSE_UNITS_RE.match(post_str):
+                    continue
+                window = cleaned[max(0, dec_start - 35) : min(len(cleaned), dec_end + 35)]
+                if re.search(_GLUCOSE_CONTEXT_WORDS, window, re.IGNORECASE):
+                    return EmergencyMatch(
+                        trigger_kind="severe_hypoglycemia",
+                        matched_text=dec_match.group(0),
+                        reply=EMERGENCY_REPLY_HYPO,
+                    )
+        except ValueError:
+            pass
 
     return None
 

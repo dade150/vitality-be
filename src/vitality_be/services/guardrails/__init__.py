@@ -1,4 +1,4 @@
-"""Package Guardrails Clinici e Conversazionali per Vitality Assist.
+"""Package Guardrails Clinici e Conversazionali per diaLog2.
 
 Architettura Defense-in-Depth a 3 Livelli:
 - Livello 1: Regole e pattern deterministici per emergenze e jailbreak (rules.py)

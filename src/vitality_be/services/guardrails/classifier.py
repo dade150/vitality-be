@@ -19,6 +19,14 @@ _TRIVIAL_GREETING_RE = re.compile(
     re.IGNORECASE,
 )
 
+_GENERIC_ATTACHMENT_CAPTIONS_RE = re.compile(
+    r"^\s*(?:ecco\s+(?:la\s+foto|il\s+referto|il\s+pasto|lo\s+scontrino|il\s+valore|l['’]immagine|l['’]allegato)|"
+    r"foto(?:\s+pasto|\s+referto|\s+glucometro)?|referto|pasto|analizza(?:\s+l['’]allegato|\s+la\s+foto|\s+il\s+referto)?|"
+    r"allegat[oa]|guarda(?:\s+quest[ao])?|questo\s+[eè]\s+il\s+(?:referto|pasto)|"
+    r"ti\s+(?:allego|mando)\s+(?:la\s+foto|il\s+referto|il\s+pasto))[!.,?\s]*$",
+    re.IGNORECASE,
+)
+
 
 class GuardrailClassification(BaseModel):
     in_topic: bool = Field(
@@ -77,8 +85,8 @@ async def classify_user_input(
     """
     clean_msg = (user_message or "").strip()
 
-    # Fast-Path 1: Se c'è un allegato (foto pasto, glucometro o PDF referto), è per definizione in-topic e ha dati
-    if has_attachment:
+    # Fast-Path 1: Se c'è un allegato senza testo o con didascalia generica/vuota, fast-path a 0 ms
+    if has_attachment and (not clean_msg or _GENERIC_ATTACHMENT_CAPTIONS_RE.match(clean_msg)):
         return GuardrailClassification(
             in_topic=True,
             intent="vitals",
@@ -94,7 +102,7 @@ async def classify_user_input(
             intent="motivation",
             is_medical_prescription_request=False,
             emergency_risk=False,
-            has_loggable_data=False,
+            has_loggable_data=has_attachment,
         )
 
     # Se il provider non supporta Structured Outputs o siamo in test unitario con EchoProvider
@@ -130,6 +138,8 @@ async def classify_user_input(
                 emergency_risk=False,
                 has_loggable_data=True,
             )
+        if has_attachment:
+            classification.has_loggable_data = True
         return classification
     except Exception as exc:
         logger.warning("classificatore semantico guardrail fallito (degradazione graziosa) exc={} detail={}", type(exc).__name__, exc)
