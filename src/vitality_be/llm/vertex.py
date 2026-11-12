@@ -53,6 +53,12 @@ _THINKING = {
     "medium": types.ThinkingLevel.MEDIUM,
     "high": types.ThinkingLevel.HIGH,
 }
+_THINKING_BUDGET_25 = {
+    "minimal": 0,
+    "low": 256,
+    "medium": 1024,
+    "high": 2048,
+}
 _RETRYABLE_CODES = {429, 503}
 _SENTENCE_END = (".", "!", "?", "…", "\n")
 
@@ -74,6 +80,7 @@ class VertexProvider:
         self.model = model
         self._timeout_s = timeout_s
         self._backoff = retry_backoff_s
+        self.last_stream_tokens_used: int | None = None
         # Client creato UNA volta e riusato (nessuna API key: Application Default Credentials).
         # Timeout in ms; il limite vero è la scadenza totale gestita in chat().
         self._client = client or genai.Client(
@@ -82,11 +89,20 @@ class VertexProvider:
             location=location,
             http_options=types.HttpOptions(timeout=int(timeout_s * 1000)),
         )
+        lvl = (thinking_level or "low").strip().lower()
+        if model and model.strip().lower().startswith("gemini-2.5"):
+            thinking_cfg = types.ThinkingConfig(
+                thinking_budget=_THINKING_BUDGET_25.get(lvl, 0)
+            )
+        else:
+            thinking_cfg = types.ThinkingConfig(
+                thinking_level=_THINKING.get(lvl, types.ThinkingLevel.LOW)
+            )
         self._config_base = dict(
             max_output_tokens=max_output_tokens,
             temperature=temperature,
             safety_settings=SAFETY_SETTINGS,
-            #thinking_config=types.ThinkingConfig(thinking_level=_THINKING[thinking_level]),
+            thinking_config=thinking_cfg,
         )
 
     async def aclose(self) -> None:
@@ -196,6 +212,9 @@ class VertexProvider:
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self._timeout_s
+        started = time.monotonic()
+        self.last_stream_tokens_used = None
+        last_chunk = None
 
         try:
             remaining = deadline - loop.time()
@@ -206,6 +225,18 @@ class VertexProvider:
                     model=self.model, contents=contents, config=config
                 )
                 async for chunk in stream:
+                    last_chunk = chunk
+                    u = getattr(chunk, "usage_metadata", None)
+                    if u is not None:
+                        tot = getattr(u, "total_token_count", None)
+                        if tot is None:
+                            p = getattr(u, "prompt_token_count", 0) or 0
+                            c = getattr(u, "candidates_token_count", 0) or 0
+                            th = getattr(u, "thoughts_token_count", 0) or 0
+                            tot = p + c + th if (p + c + th) > 0 else None
+                        if tot is not None:
+                            self.last_stream_tokens_used = int(tot)
+
                     fb = chunk.prompt_feedback
                     if fb is not None and fb.block_reason is not None:
                         raise LLMBlocked("Prompt bloccato dal provider", code=f"prompt_{fb.block_reason.name.lower()}")
@@ -222,6 +253,8 @@ class VertexProvider:
                     part_text = "".join(p.text for p in parts if p.text and not p.thought)
                     if part_text:
                         yield part_text
+            if last_chunk is not None and getattr(last_chunk, "usage_metadata", None) is not None:
+                self._log_usage(last_chunk, time.monotonic() - started, 1)
         except TimeoutError:
             raise LLMUnavailable("Timeout del provider LLM", code="timeout") from None
         except errors.APIError as exc:

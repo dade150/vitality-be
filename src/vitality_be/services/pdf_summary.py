@@ -967,4 +967,7 @@ async def generate_patient_summary_pdf(user_db: Client, months: int = 3) -> byte
     if months not in (2, 3, 4):
         raise ValueError("Il parametro months deve essere 2, 3 o 4.")
 
-    return _build_summary_pdf_sync(user_db, months)
+    try:
+        return await asyncio.to_thread(_build_summary_pdf_sync, user_db, months)
+    except RuntimeError:
+        return _build_summary_pdf_sync(user_db, months)

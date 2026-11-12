@@ -36,6 +36,19 @@ class FakeModels:
             return await o()
         return o
 
+    async def generate_content_stream(self, *, model, contents, config):
+        self.calls.append((model, contents, config))
+        outcomes = list(self.outcomes)
+        self.outcomes.clear()
+
+        async def _gen():
+            for o in outcomes:
+                if isinstance(o, BaseException):
+                    raise o
+                yield o
+
+        return _gen()
+
 
 class FakeClient:
     def __init__(self, *outcomes):
@@ -155,3 +168,52 @@ async def test_credenziali_e_rete():
     with pytest.raises(LLMUnavailable) as e:
         await p.chat(MSGS)
     assert e.value.code == "network"
+
+
+def test_gemini_25_usa_thinking_budget():
+    client = FakeClient(resp("Ok 2.5"))
+    p = VertexProvider(
+        project="p",
+        location="eu",
+        model="gemini-2.5-flash",
+        timeout_s=10.0,
+        max_output_tokens=1024,
+        temperature=0.3,
+        thinking_level="LOW",
+        client=client,
+        retry_backoff_s=(0.0, 0.0),
+    )
+    assert p._config_base["thinking_config"].thinking_budget == 256
+    assert p._config_base["thinking_config"].thinking_level is None
+
+
+def test_stream_chat_registra_tokens_used(monkeypatch):
+    import asyncio
+    from contextlib import asynccontextmanager
+
+    class _DummyLoop:
+        def time(self):
+            return 0.0
+
+    @asynccontextmanager
+    async def _noop_timeout(_delay):
+        yield
+
+    monkeypatch.setattr(asyncio, "get_running_loop", lambda: _DummyLoop())
+    monkeypatch.setattr(asyncio, "timeout", _noop_timeout)
+
+    p, _ = make(resp("Primo ", finish=None), resp("Secondo", finish=types.FinishReason.STOP))
+    gen = p.stream_chat(MSGS)
+    chunks = []
+    try:
+        while True:
+            coro = gen.__anext__()
+            try:
+                while True:
+                    coro.send(None)
+            except StopIteration as exc:
+                chunks.append(exc.value)
+    except StopAsyncIteration:
+        pass
+    assert "".join(chunks) == "Primo Secondo"
+    assert p.last_stream_tokens_used == 18

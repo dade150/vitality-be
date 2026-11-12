@@ -877,17 +877,30 @@ async def fetch_patient_context(
     ref_now = now or datetime.now(timezone.utc)
 
     try:
-        (
-            user_rows,
-            profile_rows,
-            diabetes_rows,
-            therapies_rows,
-            therapy_logs_rows,
-            meals_rows,
-            activities_rows,
-            appointments_rows,
-            reports_rows,
-        ) = _fetch_bundle_or_tables_sync(user_db)
+        try:
+            (
+                user_rows,
+                profile_rows,
+                diabetes_rows,
+                therapies_rows,
+                therapy_logs_rows,
+                meals_rows,
+                activities_rows,
+                appointments_rows,
+                reports_rows,
+            ) = await asyncio.to_thread(_fetch_bundle_or_tables_sync, user_db)
+        except RuntimeError:
+            (
+                user_rows,
+                profile_rows,
+                diabetes_rows,
+                therapies_rows,
+                therapy_logs_rows,
+                meals_rows,
+                activities_rows,
+                appointments_rows,
+                reports_rows,
+            ) = _fetch_bundle_or_tables_sync(user_db)
     except Exception as fetch_exc:
         logger.warning("patient_context fetch fallito: {}", type(fetch_exc).__name__)
         user_rows = profile_rows = diabetes_rows = therapies_rows = therapy_logs_rows = meals_rows = activities_rows = appointments_rows = reports_rows = []

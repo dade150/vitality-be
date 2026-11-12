@@ -185,6 +185,19 @@ def test_require_ai_health_consent_forbidden_when_false():
     assert "GDPR Art. 9" in exc_info.value.detail
 
 
+def test_require_ai_health_consent_revoked_in_db_overrides_token():
+    # Anche se il JWT user_metadata ha ancora ai_health_consent=True (es. revoca Art. 7.3 non riallineata sul client),
+    # la tabella public.user è la fonte autoritativa e blocca l'accesso con 403.
+    user = CurrentUser(id="user-ai-revoked", email="revoked@test.it", token="tok", ai_health_consent=True)
+    db = FakeUserDb(table_data={"user": [{"ai_health_consent": False}]})
+
+    with pytest.raises(HTTPException) as exc_info:
+        run_coro(require_ai_health_consent(user=user, user_db=db))
+
+    assert exc_info.value.status_code == 403
+    assert "GDPR Art. 9" in exc_info.value.detail
+
+
 def test_update_ai_health_consent_success():
     user = CurrentUser(id="user-toggle", email="toggle@test.it", token="tok", ai_health_consent=True)
     db = FakeUserDb(rpc_success=True)

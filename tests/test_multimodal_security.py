@@ -135,6 +135,28 @@ def test_reject_malicious_pdf():
         )
 
 
+def test_reject_malicious_pdf_compressed_xref():
+    import pymupdf
+
+    doc = pymupdf.open()
+    doc.new_page()
+    # Inseriamo un oggetto azione JavaScript nel catalogo e comprimiamo gli stream (deflate=True, use_objstms=1)
+    js_xref = doc.get_new_xref()
+    doc.update_object(js_xref, "<< /Type /Action /S /JavaScript /JS (app.alert('xss')) >>")
+    cat_xref = doc.pdf_catalog()
+    doc.xref_set_key(cat_xref, "OpenAction", f"{js_xref} 0 R")
+    pdf_bytes = doc.tobytes(garbage=3, deflate=True, use_objstms=1)
+    doc.close()
+
+    b64 = base64.b64encode(pdf_bytes).decode()
+    with pytest.raises(MultimodalValidationError, match="script attivi"):
+        process_and_sanitize_attachment(
+            data_base64=b64,
+            mime_type="application/pdf",
+            kind="medical_report",
+        )
+
+
 def test_reject_oversized_attachment():
     big_data = b"\xff\xd8\xff\xe0" + b"\x00" * 2000
     b64 = base64.b64encode(big_data).decode()

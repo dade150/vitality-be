@@ -65,6 +65,7 @@ class MockClassifierLLM(LLMProvider):
         self._chat_reply = chat_reply
         self._chat_tokens = chat_tokens
         self._fail_classification = fail_classification
+        self.last_stream_tokens_used: int | None = None
         self.last_messages: list[ChatMessage] = []
         self.last_system: str | None = None
         self.last_media_bytes: bytes | None = None
@@ -117,6 +118,7 @@ class MockClassifierLLM(LLMProvider):
         words = self._chat_reply.split(" ")
         for i, word in enumerate(words):
             yield word + (" " if i < len(words) - 1 else "")
+        self.last_stream_tokens_used = self._chat_tokens
 
     async def generate_structured(
         self,
@@ -380,6 +382,34 @@ class TestLevel2SemanticClassifier:
         assert res.intent == "other_clinical"
         assert res.has_loggable_data is True
 
+    def test_multi_turn_recent_history_passed_to_classifier(self):
+        """Verifica che gli ultimi 2-3 turni conversazionali vengano passati al classificatore L2."""
+        mock_llm = MockClassifierLLM(
+            classification=GuardrailClassification(
+                in_topic=True,
+                intent="therapy",
+                is_medical_prescription_request=True,
+                emergency_risk=False,
+                has_loggable_data=False,
+            )
+        )
+        recent = [
+            ChatMessage(role="user", content="Di solito faccio 2 unità di insulina rapida a pranzo."),
+            ChatMessage(role="assistant", content="Ricorda di seguire sempre il piano concordato con il diabetologo."),
+        ]
+        res = _run_coro_sync(
+            classify_user_input(
+                mock_llm,
+                "E se oggi ne faccio 4 unità?",
+                has_attachment=False,
+                recent_history=recent,
+            )
+        )
+        assert res.is_medical_prescription_request is True
+        assert len(mock_llm.last_messages) == 3
+        assert mock_llm.last_messages[0].content == "Di solito faccio 2 unità di insulina rapida a pranzo."
+        assert mock_llm.last_messages[-1].content == "E se oggi ne faccio 4 unità?"
+
 
 # ============================================================================
 # LIVELLO 3: OUTPUT SANITIZATION GUARDRAIL (POST-GENERATION)
@@ -397,6 +427,10 @@ class TestLevel3OutputSanitizer:
             "Aumenta l'insulina a 14 unità se la glicemia supera 180.",
             "Riduci la metformina di 500 mg da domani.",
             "Passa a 850 mg di farmaco due volte al dì.",
+            "Potresti provare con 10 unità di insulina rapida.",
+            "Dovresti fare 4 UI prima di cena.",
+            "Ti suggerisco di assumere 500 mg a pranzo.",
+            "Sarebbe meglio iniettare 6 unità stasera.",
         ],
     )
     def test_imperative_prescriptions_sanitized(self, raw_output: str):
@@ -575,6 +609,7 @@ class TestIntegratedChatPipelineGuardrails:
         assert res.guardrail_category == "prescription_redirect"
         assert "[indicazione posologica non consentita]" in res.reply
         assert "Nota di sicurezza clinica" in res.reply
+        assert res.tokens_used == 15
 
     def test_stream_pipeline_native_pdf_does_not_leak_raw_bytes_to_llm(self):
         """Verifica (F-03) che un PDF nativo con CF venga estratto e de-identificato in RAM senza inviare il binario PDF a stream_chat."""

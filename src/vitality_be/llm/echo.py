@@ -6,6 +6,9 @@ from vitality_be.llm.base import ChatMessage, LLMChatResult
 class EchoProvider:
     """Provider finto per sviluppo/test: nessuna credenziale, nessuna rete."""
 
+    def __init__(self) -> None:
+        self.last_stream_tokens_used: int | None = None
+
     async def chat(
         self,
         messages: list[ChatMessage],
@@ -43,6 +46,7 @@ class EchoProvider:
         media_bytes: bytes | None = None,
         media_mime_type: str | None = None,
     ) -> AsyncIterator[str]:
+        self.last_stream_tokens_used = None
         full_text = await self.chat(
             messages,
             system=system,
@@ -53,6 +57,9 @@ class EchoProvider:
         chunk_size = 12
         for i in range(0, len(full_text), chunk_size):
             yield full_text[i : i + chunk_size]
+        self.last_stream_tokens_used = (
+            sum(len(m.content) for m in messages) // 4 + len(full_text) // 4
+        )
 
     async def generate_structured(
         self,

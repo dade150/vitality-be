@@ -5,6 +5,7 @@ richieste di prescrizione farmaci e indicazione se l'utente sta fornendo dati da
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 import re
 from typing import Literal
 
@@ -78,10 +79,12 @@ async def classify_user_input(
     user_message: str,
     *,
     has_attachment: bool = False,
+    recent_history: Sequence[ChatMessage] | None = None,
 ) -> GuardrailClassification:
     """Classifica l'input dell'utente con Fast-Path a 0 ms per allegati e saluti,
 
-    oppure tramite chiamata strutturata a Gemini Flash.
+    oppure tramite chiamata strutturata a Gemini Flash (includendo fino agli ultimi
+    3 turni precedenti pseudonimizzati per preservare il contesto di richieste di follow-up).
     """
     clean_msg = (user_message or "").strip()
 
@@ -115,18 +118,27 @@ async def classify_user_input(
             has_loggable_data=True,
         )
 
+    # Costruisce la finestra di contesto: fino agli ultimi 3 messaggi precedenti + messaggio corrente
+    messages_for_classifier: list[ChatMessage] = []
+    if recent_history:
+        for prev in list(recent_history)[-3:]:
+            prev_content = (prev.content or "").strip()
+            if prev_content:
+                messages_for_classifier.append(ChatMessage(role=prev.role, content=prev_content[:600]))
+    messages_for_classifier.append(ChatMessage(role="user", content=clean_msg))
+
     # Chiamata semantica a Gemini Flash (temp 0.0, prompt conciso, token adeguati anche per thinking)
     try:
         try:
             classification = await llm.generate_structured(
-                [ChatMessage(role="user", content=clean_msg)],
+                messages_for_classifier,
                 system=get_guardrails_system_prompt(),
                 response_schema=GuardrailClassification,
                 max_output_tokens=512,
             )
         except TypeError:
             classification = await llm.generate_structured(
-                [ChatMessage(role="user", content=clean_msg)],
+                messages_for_classifier,
                 system=get_guardrails_system_prompt(),
                 response_schema=GuardrailClassification,
             )
@@ -142,7 +154,10 @@ async def classify_user_input(
             classification.has_loggable_data = True
         return classification
     except Exception as exc:
-        logger.warning("classificatore semantico guardrail fallito (degradazione graziosa) exc={} detail={}", type(exc).__name__, exc)
+        logger.warning(
+            "classificatore semantico guardrail fallito (degradazione graziosa) exc={}",
+            type(exc).__name__,
+        )
         # Degradazione graziosa sicura: non blocca la conversazione per un errore transitorio di rete
         return GuardrailClassification(
             in_topic=True,

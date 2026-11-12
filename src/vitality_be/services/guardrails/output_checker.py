@@ -15,14 +15,15 @@ PRESCRIPTION_DISCLAIMER = (
     "Per qualsiasi variazione terapeutica, confrontati sempre con il tuo medico curante o diabetologo."
 )
 
-# Pattern imperativi/prescrittivi su dosaggi farmacologici specifici
+# Pattern imperativi, condizionali o suggestivi su dosaggi farmacologici specifici
 # Nota: esclude esplicitamente grammi/carboidrati/zuccheri per non bloccare la Regola del 15 ("15 grammi di zucchero")
+_PHARMA_UNITS = r"(?:mg|milligramm[io]|mcg|microgramm[io]|ui\b|u\.i\.|unit[aà](?:\s+di\s+insulina)?|compress[ae]|pastigli[ae]|pillol[ae]|gocc[eia]|fial[ae])"
 _PRESCRIPTION_PATTERNS = [
-    r"\b(?:ti\s+consiglio\s+di\s+(?:prendere|assumere|iniettare|aumentare|ridurre|dimezzare|sospendere))\s+\d+(?:[.,]\d+)?\s*(?:mg|milligrammi|ui\b|unit[aà]|compress[ae]|pastigli[ae]|gocc[eia])\b",
-    r"\b(?:prendi|assumi|inietta(?:ti)?|fai)\s+\d+(?:[.,]\d+)?\s*(?:mg|milligrammi|ui\b|unit[aà]|compress[ae]|pastigli[ae]|gocc[eia])\b",
-    r"\b(?:aumenta(?:re)?\s+(?:la\s+dose|l['’]insulina|la\s+metformina|il\s+farmaco)\s+(?:a|di))\s+\d+(?:[.,]\d+)?\s*(?:mg|milligrammi|ui\b|unit[aà]|compress[ae]|pastigli[ae]|gocc[eia])?\b",
-    r"\b(?:riduci\s+(?:la\s+dose|l['’]insulina|la\s+metformina|il\s+farmaco)\s+(?:a|di))\s+\d+(?:[.,]\d+)?\s*(?:mg|milligrammi|ui\b|unit[aà]|compress[ae]|pastigli[ae]|gocc[eia])?\b",
-    r"\b(?:passa\s+a)\s+\d+(?:[.,]\d+)?\s*(?:mg|milligrammi|ui\b|unit[aà]|compress[ae]|pastigli[ae])\b",
+    rf"\b(?:ti\s+(?:consiglio|suggerisco|raccomando|invito)\s+(?:di|a)\s+(?:prendere|assumere|iniettar(?:ti|e)|somministrar(?:ti|e)|fare|provare(?:\s+con)?|aumentare|ridurre|dimezzare|sospendere))\s+(?:con\s+|a\s+|di\s+)?\d+(?:[.,]\d+)?\s*{_PHARMA_UNITS}\b",
+    rf"\b(?:potresti|dovresti|puoi|conviene|sarebbe\s+meglio|meglio|prova\s+a|provare\s+a)\s+(?:prendere|assumere|iniettar(?:ti|e)|somministrar(?:ti|e)|fare|provare(?:\s+con)?|usare|aggiungere|aumentare(?:\s+a|\s+di)?|ridurre(?:\s+a|\s+di)?|portare(?:\s+a)?|passare\s+a)\s+(?:con\s+|a\s+|di\s+)?\d+(?:[.,]\d+)?\s*{_PHARMA_UNITS}\b",
+    rf"\b(?:prendi|assumi|inietta(?:ti)?|somministra(?:ti)?|fai|aggiungi)\s+\d+(?:[.,]\d+)?\s*{_PHARMA_UNITS}\b",
+    rf"\b(?:aumenta(?:re)?|riduci|ridurre|porta(?:re)?|modifica(?:re)?)\s+(?:la\s+dose|il\s+dosaggio|l['’]insulina|la\s+metformina|il\s+farmaco|la\s+terapia)\s+(?:a|di)\s+\d+(?:[.,]\d+)?\s*{_PHARMA_UNITS}?\b",
+    rf"\b(?:passa(?:re)?\s+a|sali(?:re)?\s+a|scendi(?:re)?\s+a)\s+\d+(?:[.,]\d+)?\s*{_PHARMA_UNITS}\b",
 ]
 _PRESCRIPTION_RE = re.compile("|".join(_PRESCRIPTION_PATTERNS), re.IGNORECASE)
 

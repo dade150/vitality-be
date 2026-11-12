@@ -224,7 +224,7 @@ def _sanitize_image_metadata(data: bytes, mime_type: str) -> tuple[bytes, bool]:
 
 
 def _check_pdf_safety(data: bytes) -> None:
-    """Verifica che un PDF non contenga macro, script o azioni malevole."""
+    """Verifica che un PDF non contenga macro, script o azioni malevole (sia nei byte grezzi sia negli oggetti decompressi)."""
     lower = data.lower()
     dangerous_keywords = (b"/javascript", b"/js", b"/launch", b"/embeddedfiles", b"/richmedia")
     for kw in dangerous_keywords:
@@ -234,6 +234,30 @@ def _check_pdf_safety(data: bytes) -> None:
                 raise MultimodalValidationError(
                     "Il PDF contiene script attivi o elementi malevoli non ammessi per ragioni di sicurezza."
                 )
+
+    # Ispezione degli oggetti PDF decompressi (XREF / Object Streams FlateDecode) tramite PyMuPDF
+    try:
+        doc = pymupdf.open(stream=data, filetype="pdf")
+    except Exception:
+        return
+
+    try:
+        xref_len = doc.xref_length()
+        for xref in range(1, xref_len):
+            try:
+                obj_str = doc.xref_object(xref, compressed=False) or ""
+            except Exception:
+                continue
+            obj_lower = obj_str.lower().encode("utf-8", errors="ignore")
+            for kw in dangerous_keywords:
+                if kw in obj_lower:
+                    pattern = rb"/" + re.escape(kw[1:]) + rb"\b"
+                    if re.search(pattern, obj_lower):
+                        raise MultimodalValidationError(
+                            "Il PDF contiene script attivi o elementi malevoli non ammessi per ragioni di sicurezza."
+                        )
+    finally:
+        doc.close()
 
 
 def _sanitize_pdf_metadata(pdf_bytes: bytes) -> tuple[bytes, bool]:
@@ -252,7 +276,10 @@ def _sanitize_pdf_metadata(pdf_bytes: bytes) -> tuple[bytes, bool]:
         doc.close()
         return clean_bytes, had_meta
     except Exception as exc:
-        logger.warning("Sanitizzazione metadati PDF fallita (conservati byte originali): {}", exc)
+        logger.warning(
+            "Sanitizzazione metadati PDF fallita (conservati byte originali) exc={}",
+            type(exc).__name__,
+        )
         return pdf_bytes, False
 
 

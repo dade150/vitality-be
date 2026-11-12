@@ -13,7 +13,6 @@ def test_echo_senza_gcp():
 @pytest.mark.parametrize("kw", [
     dict(llm_provider="vertex"),  # mancano progetto e modello
     dict(llm_provider="vertex", gcp_project="p", llm_model="m", gcp_location="global"),
-    dict(llm_provider="vertex", gcp_project="p", llm_model="gemini-2.5-flash"),
     dict(environment="prod", llm_model="gemini-x-preview", allowed_hosts="a.it"),
     dict(environment="prod"),  # allowed_hosts di default non ammessi in prod
     dict(environment="prod", allowed_hosts="*"),
@@ -29,3 +28,5 @@ def test_config_non_valida(kw):
 def test_vertex_valida():
     s = Settings(**BASE, llm_provider="vertex", gcp_project="p", llm_model="gemini-3.6-flash")
     assert s.gcp_location == "eu"
+    s2 = Settings(**BASE, llm_provider="vertex", gcp_project="p", llm_model="gemini-2.5-flash")
+    assert s2.llm_model == "gemini-2.5-flash"

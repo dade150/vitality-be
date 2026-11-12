@@ -325,11 +325,16 @@ async def run_chat_pipeline(
 
     # --- LIVELLO 2 + DUAL-RAG + PATIENT CONTEXT IN PARALLELO (asyncio.gather) ---
     scrubbed_query_for_classifier = scrub_free_text(user_message)
+    scrubbed_recent_history = [
+        ChatMessage(role=m.role, content=scrub_free_text(m.content))
+        for m in history[:-1][-3:]
+    ]
     has_attachment_flag = bool(actual_media_bytes or extracted_pdf_text)
     classify_task = classify_user_input(
         llm,
         scrubbed_query_for_classifier,
         has_attachment=has_attachment_flag,
+        recent_history=scrubbed_recent_history,
     )
 
     if user_db is not None:
@@ -653,11 +658,16 @@ async def stream_chat_pipeline(
 
     # --- LIVELLO 2 + DUAL-RAG + PATIENT CONTEXT IN PARALLELO (asyncio.gather) ---
     scrubbed_query_for_classifier = scrub_free_text(user_message)
+    scrubbed_recent_history = [
+        ChatMessage(role=m.role, content=scrub_free_text(m.content))
+        for m in history[:-1][-3:]
+    ]
     has_attachment_flag = bool(actual_media_bytes or extracted_pdf_text)
     classify_task = classify_user_input(
         llm,
         scrubbed_query_for_classifier,
         has_attachment=has_attachment_flag,
+        recent_history=scrubbed_recent_history,
     )
 
     if user_db is not None:
@@ -844,6 +854,9 @@ async def stream_chat_pipeline(
 
     accumulated_raw: list[str] = []
     buffer = ""
+    fallback_stream_tokens: int | None = None
+    if hasattr(llm, "last_stream_tokens_used"):
+        llm.last_stream_tokens_used = None
 
     try:
         if hasattr(llm, "stream_chat"):
@@ -856,13 +869,24 @@ async def stream_chat_pipeline(
         else:
             # Fallback se il provider non ha stream_chat
             async def _single_chunk_stream():
-                res = await llm.chat(
-                    chat_history,
-                    system=get_chat_system_prompt(),
-                    media_bytes=actual_media_bytes,
-                    media_mime_type=actual_media_mime,
-                )
-                yield res
+                nonlocal fallback_stream_tokens
+                if hasattr(llm, "chat_with_usage"):
+                    res_obj = await llm.chat_with_usage(
+                        chat_history,
+                        system=get_chat_system_prompt(),
+                        media_bytes=actual_media_bytes,
+                        media_mime_type=actual_media_mime,
+                    )
+                    fallback_stream_tokens = res_obj.tokens_used
+                    yield res_obj.text
+                else:
+                    res = await llm.chat(
+                        chat_history,
+                        system=get_chat_system_prompt(),
+                        media_bytes=actual_media_bytes,
+                        media_mime_type=actual_media_mime,
+                    )
+                    yield res
 
             raw_stream = _single_chunk_stream()
 
@@ -958,10 +982,14 @@ async def stream_chat_pipeline(
         for c in chunks
     ]
 
+    stream_tokens_used = getattr(llm, "last_stream_tokens_used", None)
+    if stream_tokens_used is None:
+        stream_tokens_used = fallback_stream_tokens
+
     pipeline_res = ChatPipelineResult(
         reply=rehydrated_full,
         proposed_entries=proposals,
-        tokens_used=None,
+        tokens_used=stream_tokens_used,
         rag_chunks=chunks_dicts,
         is_emergency=False,
         guardrail_category=guardrail_category,

@@ -131,6 +131,18 @@ def _stem_match(token: str, text: str) -> bool:
     return False
 
 
+async def _execute_query_nonblocking(query):
+    """Esegue `.execute()` in thread pool se c'è un event loop attivo, altrimenti in modo sincrono (test)."""
+    if asyncio.iscoroutine(query):
+        return await query
+    if not hasattr(query, "execute"):
+        return query
+    try:
+        return await asyncio.to_thread(query.execute)
+    except RuntimeError:
+        return query.execute()
+
+
 async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict[str, Any]]:
     """Cerca alimenti candidati nella tabella `foods` (o `alimenti`) su Supabase."""
     if not tokens:
@@ -143,7 +155,7 @@ async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict
         for token in tokens[:8]:
             try:
                 query = user_db.rpc("search_foods", {"query_text": token, "match_limit": 10})
-                resp = await query if asyncio.iscoroutine(query) else (query.execute() if hasattr(query, "execute") else query)
+                resp = await _execute_query_nonblocking(query)
                 rows = getattr(resp, "data", None) if resp else []
                 if isinstance(rows, list):
                     for r in rows:
@@ -161,7 +173,7 @@ async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict
         for token in tokens[:8]:
             try:
                 query = user_db.table(table_name).select(cols).ilike("name", f"%{token}%").limit(10)
-                resp = await query if asyncio.iscoroutine(query) else (query.execute() if hasattr(query, "execute") else query)
+                resp = await _execute_query_nonblocking(query)
                 rows = getattr(resp, "data", None) if resp else []
                 if isinstance(rows, list):
                     for r in rows:
@@ -173,7 +185,7 @@ async def fetch_food_candidates(user_db: Client, tokens: list[str]) -> list[dict
                     table_name = "alimenti"
                     try:
                         query = user_db.table("alimenti").select(cols).ilike("name", f"%{token}%").limit(10)
-                        resp = await query if asyncio.iscoroutine(query) else (query.execute() if hasattr(query, "execute") else query)
+                        resp = await _execute_query_nonblocking(query)
                         rows = getattr(resp, "data", None) if resp else []
                         if isinstance(rows, list):
                             for r in rows:

@@ -35,7 +35,12 @@ class MeResponse(BaseModel):
 
 
 async def _run_sync_or_thread(fn):
-    res = fn()
+    """Esegue la funzione sincrona in un thread separato (`asyncio.to_thread`) per non bloccare
+    l'event loop, con fallback diretto per test unitari sincroni senza event loop attivo."""
+    try:
+        res = await asyncio.to_thread(fn)
+    except RuntimeError:
+        res = fn()
     if inspect.isawaitable(res):
         return await res
     return res
