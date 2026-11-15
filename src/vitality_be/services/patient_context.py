@@ -480,7 +480,7 @@ def _fetch_all_tables_sync(user_db: Client) -> tuple[list[dict[str, Any]], ...]:
             user_db.table("diabetes_data")
             .select("metric_type, metric_value, measured_at, created_at")
             .order("measured_at", desc=True)
-            .limit(60)
+            .limit(80)
             .execute()
         ),
     )
@@ -501,7 +501,7 @@ def _fetch_all_tables_sync(user_db: Client) -> tuple[list[dict[str, Any]], ...]:
             user_db.table("therapy_logs")
             .select("therapy_id, taken_at, status")
             .order("taken_at", desc=True)
-            .limit(10)
+            .limit(25)
             .execute()
         ),
     )
@@ -511,7 +511,7 @@ def _fetch_all_tables_sync(user_db: Client) -> tuple[list[dict[str, Any]], ...]:
             user_db.table("meals")
             .select("meal_type, description, carbs_grams, calories, meal_at, is_estimated, created_at")
             .order("meal_at", desc=True)
-            .limit(7)
+            .limit(15)
             .execute()
         ),
     )
@@ -521,7 +521,7 @@ def _fetch_all_tables_sync(user_db: Client) -> tuple[list[dict[str, Any]], ...]:
             user_db.table("physical_activities")
             .select("activity_type, duration_minutes, intensity, steps, notes, activity_at, created_at")
             .order("activity_at", desc=True)
-            .limit(7)
+            .limit(15)
             .execute()
         ),
     )
@@ -607,6 +607,9 @@ def _format_diabetes_data_sections(
     if not rows:
         return []
 
+    seven_days_ago = now - timedelta(days=7)
+    fourteen_days_ago = now - timedelta(days=14)
+
     glucose_readings: list[tuple[Any, str, float | None]] = []
     bp_readings: list[tuple[Any, str]] = []
     latest_labs: dict[str, tuple[Any, str]] = {}
@@ -617,19 +620,22 @@ def _format_diabetes_data_sections(
         m_at = r.get("measured_at") or r.get("created_at")
         if not m_type or not m_val:
             continue
+        m_dt = _parse_datetime(m_at)
 
         if m_type == "GLICEMIA":
-            glucose_readings.append((m_at, m_val, _extract_first_float(m_val)))
+            if m_dt is None or m_dt >= seven_days_ago:
+                glucose_readings.append((m_at, m_val, _extract_first_float(m_val)))
         elif m_type == "PRESSIONE":
-            bp_readings.append((m_at, m_val))
+            if m_dt is None or m_dt >= fourteen_days_ago:
+                bp_readings.append((m_at, m_val))
         elif m_type in _LAB_METRIC_LABELS and m_type not in latest_labs:
             latest_labs[m_type] = (m_at, m_val)
 
     sections: list[str] = []
 
-    # 1. Diario glicemico SMBG + Statistiche pre-calcolate
+    # 1. Diario glicemico SMBG (ultime 20 misurazioni negli ultimi 7 giorni) + Statistiche pre-calcolate
     if glucose_readings:
-        recent_g = glucose_readings[:10]
+        recent_g = glucose_readings[:20]
         numeric_vals = [v for _, _, v in recent_g if v is not None and 20.0 <= v <= 600.0]
         lines: list[str] = []
         if numeric_vals:
@@ -650,12 +656,12 @@ def _format_diabetes_data_sections(
             lines.append(f"{ts_str}: {m_val}{unit}")
         sections.append("[Diario Glicemico Recente (SMBG)]\n- " + "\n- ".join(lines))
 
-    # 2. Pressione arteriosa
+    # 2. Pressione arteriosa (ultime 10 misurazioni negli ultimi 14 giorni)
     if bp_readings:
         bp_lines = [
             f"{_format_timestamp(m_at, now=now)}: {m_val}"
             + ("" if "mmhg" in m_val.lower() else " mmHg")
-            for m_at, m_val in bp_readings[:5]
+            for m_at, m_val in bp_readings[:10]
         ]
         sections.append("[Pressione Arteriosa Recente]\n- " + "\n- ".join(bp_lines))
 
@@ -714,14 +720,20 @@ def _format_therapies_section(
         lines.append(" | ".join(detail_parts))
 
     if logs_rows:
+        five_days_ago = now - timedelta(days=5)
         log_items: list[str] = []
-        for lg in logs_rows[:5]:
+        for lg in logs_rows:
+            lg_dt = _parse_datetime(lg.get("taken_at"))
+            if lg_dt is not None and lg_dt < five_days_ago:
+                continue
             t_name = therapy_names_by_id.get(lg.get("therapy_id"), "Terapia")
             status = scrub_free_text(lg.get("status"), masking_map) or "registrata"
-            ts_str = _format_timestamp(lg.get("taken_at"), now=now)
+            ts_str = _format_timestamp(lg_dt or lg.get("taken_at"), now=now)
             log_items.append(f"{ts_str}: {t_name} ({status})")
+            if len(log_items) >= 15:
+                break
         if log_items:
-            lines.append("Ultime assunzioni registrate: " + "; ".join(log_items))
+            lines.append("Ultime assunzioni registrate (ultimi 5 giorni): " + "; ".join(log_items))
 
     return "[Terapia Farmacologica Attiva]\n- " + "\n- ".join(lines)
 
@@ -735,13 +747,17 @@ def _format_meals_section(
     if not meals_rows:
         return None
 
+    three_days_ago = now - timedelta(days=3)
     lines: list[str] = []
-    for m in meals_rows[:7]:
+    for m in meals_rows:
+        m_dt = _parse_datetime(m.get("meal_at") or m.get("created_at"))
+        if m_dt is not None and m_dt < three_days_ago:
+            continue
         m_type = str(m.get("meal_type") or "PASTO").strip().upper()
         desc = scrub_free_text(m.get("description"), masking_map)
         if not desc:
             continue
-        ts_str = _format_timestamp(m.get("meal_at") or m.get("created_at"), now=now)
+        ts_str = _format_timestamp(m_dt or m.get("meal_at") or m.get("created_at"), now=now)
         carbs = m.get("carbs_grams")
         cals = m.get("calories")
         est = bool(m.get("is_estimated"))
@@ -756,6 +772,8 @@ def _format_meals_section(
 
         nutri_str = f" ({', '.join(nutri_parts)})" if nutri_parts else ""
         lines.append(f"{ts_str} [{m_type}]: {desc[:200]}{nutri_str}")
+        if len(lines) >= 15:
+            break
 
     if not lines:
         return None
@@ -775,20 +793,22 @@ def _format_activities_section(
     weekly_minutes = 0
     lines: list[str] = []
 
-    for a in act_rows[:7]:
+    for a in act_rows:
+        act_dt = _parse_datetime(a.get("activity_at") or a.get("created_at"))
+        if act_dt is not None and act_dt < seven_days_ago:
+            continue
         act_type = str(a.get("activity_type") or "ATTIVITA").strip().upper()
         dur = a.get("duration_minutes")
         intensity = str(a.get("intensity") or "MODERATA").strip().lower()
         steps = a.get("steps")
         notes = scrub_free_text(a.get("notes"), masking_map)
-        act_dt = _parse_datetime(a.get("activity_at") or a.get("created_at"))
 
         try:
             dur_int = int(dur) if dur is not None else 0
         except (TypeError, ValueError):
             dur_int = 0
 
-        if act_dt is not None and act_dt >= seven_days_ago and dur_int > 0:
+        if dur_int > 0:
             weekly_minutes += dur_int
 
         ts_str = _format_timestamp(act_dt, now=now)
@@ -798,6 +818,11 @@ def _format_activities_section(
         if notes:
             extras.append(f"note: {notes[:100]}")
         lines.append(f"{ts_str} [{act_type}]: " + ", ".join(extras))
+        if len(lines) >= 7:
+            break
+
+    if not lines:
+        return None
 
     header_line = f"Totale movimento ultimi 7 giorni: {weekly_minutes} minuti (obiettivo linee guida: 150 min/settimana)"
     return "[Attività Fisica Recente]\n- " + "\n- ".join([header_line, *lines])

@@ -354,3 +354,160 @@ async def test_chat_reply_dual_rag_scrubs_input_and_rehydrates_output():
     assert sent_system is not None
     assert "<contesto_paziente>" in sent_system  # Istruzioni sull'uso del blocco nel system prompt
     assert "HbA1c (Emoglobina Glicata): 6.7 %" not in sent_system  # Ma MAI i dati reali nel system prompt
+
+
+@pytest.mark.asyncio
+async def test_fetch_patient_context_respects_table2_windows_and_limits():
+    """Verifica finestre temporali e limiti della Tabella 2 (sez. 3.4 tesi)."""
+    from datetime import timedelta
+
+    fixed_now = datetime(2026, 11, 15, 12, 0, tzinfo=timezone.utc)
+
+    # 22 glicemie negli ultimi 7 giorni (ne vanno tenute 20) + 1 vecchia di 10 giorni (va esclusa)
+    glucose_rows = [
+        {
+            "metric_type": "GLICEMIA",
+            "metric_value": str(100 + i),
+            "measured_at": (fixed_now - timedelta(hours=i + 1)).isoformat(),
+        }
+        for i in range(22)
+    ]
+    glucose_rows.append(
+        {
+            "metric_type": "GLICEMIA",
+            "metric_value": "299",
+            "measured_at": (fixed_now - timedelta(days=10)).isoformat(),
+        }
+    )
+
+    # 12 pressioni negli ultimi 14 giorni (ne vanno tenute 10) + 1 vecchia di 20 giorni (va esclusa)
+    bp_rows = [
+        {
+            "metric_type": "PRESSIONE",
+            "metric_value": f"{120 + i}/80",
+            "measured_at": (fixed_now - timedelta(days=i)).isoformat(),
+        }
+        for i in range(12)
+    ]
+    bp_rows.append(
+        {
+            "metric_type": "PRESSIONE",
+            "metric_value": "199/110",
+            "measured_at": (fixed_now - timedelta(days=20)).isoformat(),
+        }
+    )
+
+    # Pasti: 2 entro 3 giorni + 1 vecchio di 5 giorni (escluso)
+    meal_rows = [
+        {
+            "meal_type": "PRANZO",
+            "description": "Pasta integrale con verdure",
+            "carbs_grams": 55,
+            "calories": 420,
+            "is_estimated": False,
+            "meal_at": (fixed_now - timedelta(days=1)).isoformat(),
+        },
+        {
+            "meal_type": "CENA",
+            "description": "Salmone e zucchine",
+            "carbs_grams": 10,
+            "calories": 380,
+            "is_estimated": False,
+            "meal_at": (fixed_now - timedelta(days=2)).isoformat(),
+        },
+        {
+            "meal_type": "PRANZO",
+            "description": "Pasto vecchio escluso",
+            "carbs_grams": 70,
+            "calories": 600,
+            "is_estimated": False,
+            "meal_at": (fixed_now - timedelta(days=5)).isoformat(),
+        },
+    ]
+
+    # Log terapie: 1 entro 5 giorni + 1 vecchio di 8 giorni (escluso)
+    therapy_log_rows = [
+        {"therapy_id": 1, "taken_at": (fixed_now - timedelta(days=2)).isoformat(), "status": "ASSUNTA"},
+        {"therapy_id": 1, "taken_at": (fixed_now - timedelta(days=8)).isoformat(), "status": "SALTATA"},
+    ]
+
+    # Attività fisica: 8 sessioni negli ultimi 7 giorni (max 7 incluse) + 1 vecchia di 9 giorni (esclusa)
+    act_rows = [
+        {
+            "activity_type": "CAMMINATA",
+            "duration_minutes": 20,
+            "intensity": "MODERATA",
+            "activity_at": (fixed_now - timedelta(hours=i * 12 + 1)).isoformat(),
+        }
+        for i in range(8)
+    ]
+    act_rows.append(
+        {
+            "activity_type": "CORSA",
+            "duration_minutes": 90,
+            "intensity": "ALTA",
+            "activity_at": (fixed_now - timedelta(days=9)).isoformat(),
+        }
+    )
+
+    # Referti: 6 referti (max 5 inclusi)
+    report_rows = [
+        {
+            "report_type": "ANALISI_SANGUE",
+            "source_name": f"Referto {i + 1}",
+            "clean_summary": f"Sintesi referto {i + 1}",
+            "report_at": (fixed_now - timedelta(days=i * 10)).isoformat(),
+        }
+        for i in range(6)
+    ]
+
+    db = FakePatientDb(
+        tables={
+            "diabetes_data": glucose_rows + bp_rows,
+            "therapies": [
+                {
+                    "id": 1,
+                    "therapy_type": "COMPRESSE_ORALI",
+                    "drug_name": "Metformina",
+                    "dosage": "500 mg",
+                    "frequency": "1 al giorno",
+                    "is_active": True,
+                }
+            ],
+            "therapy_logs": therapy_log_rows,
+            "meals": meal_rows,
+            "physical_activities": act_rows,
+            "patient_reports": report_rows,
+        }
+    )
+
+    res = await fetch_patient_context(db, now=fixed_now)
+    xml = res.context_xml
+
+    # Glicemie: 20 incluse, valore vecchio (299) escluso
+    assert "Sintesi ultime 20 misurazioni:" in xml
+    assert "299 mg/dL" not in xml
+    assert "120 mg/dL" not in xml  # 21esima/22esima escluse (100..119 incluse)
+
+    # Pressioni: 10 incluse, 11esima/12esima e vecchia (199/110) escluse
+    assert "129/80" in xml
+    assert "130/80" not in xml
+    assert "199/110" not in xml
+
+    # Pasti: solo ultimi 3 giorni
+    assert "Pasta integrale con verdure" in xml
+    assert "Salmone e zucchine" in xml
+    assert "Pasto vecchio escluso" not in xml
+
+    # Log terapie: solo ultimi 5 giorni
+    assert "ASSUNTA" in xml
+    assert "SALTATA" not in xml
+
+    # Attività fisica: 7 sessioni da 20 min = 140 min (non 160 né 90 della corsa vecchia)
+    assert "Totale movimento ultimi 7 giorni: 140 minuti" in xml
+    assert "[CORSA]" not in xml
+
+    # Referti: ultimi 5 inclusi, il 6° escluso
+    assert "Sintesi referto 5" in xml
+    assert "Sintesi referto 6" not in xml
+

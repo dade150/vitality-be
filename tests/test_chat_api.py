@@ -17,8 +17,13 @@ async def test_chat_ok_con_system_prompt(make_client, auth):
     prov = FakeProvider("Buongiorno")
     c, _ = make_client(prov)
     r = await c.post("/api/chat", json=OK, headers=auth)
-    assert r.status_code == 200 and r.json() == {"reply": "Buongiorno"}
-    assert prov.calls[0][1] and "Vitality Assist" in prov.calls[0][1]
+    assert r.status_code == 200
+    assert r.json() == {
+        "reply": "Buongiorno",
+        "is_emergency": False,
+        "guardrail_category": "in_topic",
+    }
+    assert prov.calls[0][1] and "diaLog2" in prov.calls[0][1]
     assert "<!--" not in prov.calls[0][1]  # la nota HTML non va al modello
     assert r.headers["cache-control"] == "no-store"
     assert r.headers["x-content-type-options"] == "nosniff"

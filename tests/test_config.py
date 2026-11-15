@@ -7,7 +7,7 @@ BASE = dict(supabase_url="x", supabase_anon_key="y")
 
 
 def test_echo_senza_gcp():
-    assert Settings(**BASE).llm_provider == "echo"
+    assert Settings(_env_file=None, **BASE).llm_provider == "echo"
 
 
 @pytest.mark.parametrize("kw", [
@@ -22,11 +22,11 @@ def test_echo_senza_gcp():
 ])
 def test_config_non_valida(kw):
     with pytest.raises(ValidationError):
-        Settings(**BASE, **kw)
+        Settings(_env_file=None, **BASE, **kw)
 
 
 def test_vertex_valida():
-    s = Settings(**BASE, llm_provider="vertex", gcp_project="p", llm_model="gemini-3.6-flash")
+    s = Settings(_env_file=None, **BASE, llm_provider="vertex", gcp_project="p", llm_model="gemini-3.6-flash")
     assert s.gcp_location == "eu"
-    s2 = Settings(**BASE, llm_provider="vertex", gcp_project="p", llm_model="gemini-2.5-flash")
+    s2 = Settings(_env_file=None, **BASE, llm_provider="vertex", gcp_project="p", llm_model="gemini-2.5-flash")
     assert s2.llm_model == "gemini-2.5-flash"
