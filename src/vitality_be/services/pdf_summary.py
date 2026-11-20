@@ -143,7 +143,7 @@ class PdfReportBuilder:
         shape.commit()
         page.insert_text(
             fitz.Point(MARGIN_LEFT, 22),
-            f"Vitality Assist — Report Medico ({self.months} Mesi) | Paziente: {name}",
+            f"diaLog2 — Report Medico ({self.months} Mesi) | Paziente: {name}",
             fontsize=8.5,
             fontname="helv",
             color=COLOR_TEXT_MUTED,
@@ -152,25 +152,28 @@ class PdfReportBuilder:
 
     def finalize(self) -> bytes:
         """Aggiunge numerazione pagine nel footer e produce il PDF in byte compresso."""
-        total = len(self.doc)
-        for idx in range(total):
-            page = self.doc[idx]
-            footer_text = f"Pagina {idx + 1} di {total}  •  Generato con Vitality Assist  •  Documento ad uso clinico"
-            shape = page.new_shape()
-            shape.draw_line(
-                fitz.Point(MARGIN_LEFT, PAGE_HEIGHT - 28),
-                fitz.Point(PAGE_WIDTH - MARGIN_RIGHT, PAGE_HEIGHT - 28),
-            )
-            shape.finish(color=COLOR_BORDER, width=0.5)
-            shape.commit()
-            page.insert_text(
-                fitz.Point(MARGIN_LEFT, PAGE_HEIGHT - 16),
-                footer_text,
-                fontsize=8,
-                fontname="helv",
-                color=COLOR_TEXT_MUTED,
-            )
-        return self.doc.tobytes(garbage=4, deflate=True)
+        try:
+            total = len(self.doc)
+            for idx in range(total):
+                page = self.doc[idx]
+                footer_text = f"Pagina {idx + 1} di {total}  •  Generato con diaLog2  •  Documento ad uso clinico"
+                shape = page.new_shape()
+                shape.draw_line(
+                    fitz.Point(MARGIN_LEFT, PAGE_HEIGHT - 28),
+                    fitz.Point(PAGE_WIDTH - MARGIN_RIGHT, PAGE_HEIGHT - 28),
+                )
+                shape.finish(color=COLOR_BORDER, width=0.5)
+                shape.commit()
+                page.insert_text(
+                    fitz.Point(MARGIN_LEFT, PAGE_HEIGHT - 16),
+                    footer_text,
+                    fontsize=8,
+                    fontname="helv",
+                    color=COLOR_TEXT_MUTED,
+                )
+            return self.doc.tobytes(garbage=4, deflate=True)
+        finally:
+            self.doc.close()
 
     # -----------------------------------------------------------------------
     # 1. Header Pagina 1

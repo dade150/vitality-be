@@ -46,18 +46,42 @@ async def _run_sync_or_thread(fn):
     return res
 
 
-async def _safe_select(user_db: Any, table_name: str, columns: str = "*") -> list[dict[str, Any]]:
+async def _safe_select(
+    user_db: Any,
+    table_name: str,
+    columns: str = "*",
+    *,
+    page_size: int = 1000,
+    max_pages: int = 100,
+) -> list[dict[str, Any]]:
+    """Legge tutti i record di una tabella sotto RLS con paginazione (evita troncamento PostgREST a 1000 righe)."""
     if not hasattr(user_db, "table"):
         return []
+    results: list[dict[str, Any]] = []
     try:
-        resp = await _run_sync_or_thread(
-            lambda: user_db.table(table_name).select(columns).execute()
-        )
-        data = getattr(resp, "data", None)
-        return list(data) if isinstance(data, list) else []
+        offset = 0
+        for _ in range(max_pages):
+            def _fetch(start: int = offset, end: int = offset + page_size - 1):
+                q = user_db.table(table_name).select(columns)
+                if hasattr(q, "range"):
+                    q = q.range(start, end)
+                return q.execute()
+
+            resp = await _run_sync_or_thread(_fetch)
+            data = getattr(resp, "data", None)
+            if not isinstance(data, list) or not data:
+                break
+            results.extend(data)
+            if len(data) < page_size:
+                break
+            # Evita loop infinito su mock unitari che ignorano .range()
+            if not hasattr(user_db.table(table_name).select(columns), "range"):
+                break
+            offset += page_size
+        return results
     except Exception as exc:
-        logger.debug("Export select degradata table={} exc={}", table_name, type(exc).__name__)
-        return []
+        logger.warning("Export select degradata table={} exc={}", table_name, type(exc).__name__)
+        return results
 
 
 @router.get("/me", response_model=MeResponse, dependencies=[Depends(enforce_rate_limit)])
@@ -113,12 +137,12 @@ async def export_my_personal_data(
     appointments_rows = await _safe_select(
         user_db,
         "appointments",
-        "id, title, doctor_name, appointment_at, notes, created_at",
+        "id, title, doctor_name, location, appointment_at, notes, created_at",
     )
     reports_rows = await _safe_select(
         user_db,
         "patient_reports",
-        "id, source_name, source_path, report_type, clean_summary, content, extracted_params, report_at, created_at",
+        "id, source_name, file_path, report_type, clean_summary, content, extracted_params, report_at, created_at",
     )
     sessions_rows = await _safe_select(
         user_db,
@@ -133,7 +157,7 @@ async def export_my_personal_data(
     logs_rows = await _safe_select(
         user_db,
         "app_logs",
-        "id, level, message, route, created_at",
+        "id, message, context, created_at",
     )
 
     export_bundle = {
@@ -192,22 +216,45 @@ async def delete_my_account_and_data(
     Elimina definitivamente tutti i dati sanitari, il diario, i referti, la cronologia chat,
     i file nello storage e l'account dell'utente autenticato.
     """
-    # 1. Cancellazione preventiva dei file archiviati nello Storage privato via API Supabase (B1)
+    # 1. Cancellazione preventiva e paginata di TUTTI i file nello Storage privato (GDPR Art. 17)
     if hasattr(user_db, "storage"):
         try:
             bucket = user_db.storage.from_("patient-reports")
-            files_resp = await _run_sync_or_thread(lambda: bucket.list(user.id))
-            if files_resp and isinstance(files_resp, list):
+            total_removed = 0
+            offset = 0
+            page_limit = 100
+            for _ in range(50):
+                try:
+                    files_resp = await _run_sync_or_thread(
+                        lambda off=offset: bucket.list(user.id, {"limit": page_limit, "offset": off})
+                    )
+                except TypeError:
+                    # Compatibilità con mock/versioni client che accettano un solo argomento `list(path)`
+                    if offset > 0:
+                        break
+                    files_resp = await _run_sync_or_thread(lambda: bucket.list(user.id))
+
+                if not files_resp or not isinstance(files_resp, list):
+                    break
                 paths_to_remove = [
                     f"{user.id}/{item['name']}"
                     for item in files_resp
                     if isinstance(item, dict) and item.get("name")
                 ]
                 if paths_to_remove:
-                    await _run_sync_or_thread(lambda: bucket.remove(paths_to_remove))
-                    logger.info("Rimossi {} file da patient-reports per user={}", len(paths_to_remove), user.id)
+                    await _run_sync_or_thread(lambda p=paths_to_remove: bucket.remove(p))
+                    total_removed += len(paths_to_remove)
+                if len(files_resp) < page_limit:
+                    break
+                offset += page_limit
+            if total_removed:
+                logger.info("Rimossi {} file da patient-reports per user={}", total_removed, user.id)
         except Exception as st_exc:
-            logger.warning("Cancellazione file Storage ignorata/fallita user={} exc={}", user.id, type(st_exc).__name__)
+            logger.error("Cancellazione file Storage fallita (abort Art. 17) user={} exc={}", user.id, type(st_exc).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Impossibile rimuovere tutti i referti archiviati nello Storage. Riprova tra poco per completare la cancellazione dell'account.",
+            ) from None
 
     # 2. Eliminazione definitiva transazionale via RPC (elimina dati + auth.users)
     rpc_ok = False

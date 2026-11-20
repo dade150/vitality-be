@@ -62,7 +62,7 @@ class FakeEmbedder:
 
 
 class FakeUserDb:
-    def table(self, _name: str):
+    def table(self, name: str):
         class Q:
             def select(self, *_a, **_k): return self
             def eq(self, *_a, **_k): return self
@@ -75,7 +75,11 @@ class FakeUserDb:
             def delete(self, *_a, **_k): return self
             def execute(self):
                 class R:
-                    data = []
+                    data = (
+                        [{"id": USER_ID, "ai_health_consent": True, "consenso_privacy": True}]
+                        if name == "user"
+                        else []
+                    )
                 return R()
         return Q()
 

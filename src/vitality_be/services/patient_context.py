@@ -884,6 +884,19 @@ def _format_appointments_and_reports_section(
     return "[Visite Mediche e Referti Recenti]\n- " + "\n- ".join(lines), updated_map
 
 
+_XML_DELIMITER_TAG_RE = re.compile(
+    r"</?\s*(?:contesto_paziente|contesto_clinico|messaggio_utente|testo_referto|pasto_utente|candidati_crea|timestamp_corrente|istruzioni_sistema)\b[^>]*>",
+    re.IGNORECASE,
+)
+
+
+def sanitize_xml_tag_content(text: str | None) -> str:
+    """Neutralizza eventuali tag XML di delimitazione strutturale nel testo non fidato (anti XML breakout)."""
+    if not text:
+        return ""
+    return _XML_DELIMITER_TAG_RE.sub("", str(text))
+
+
 async def fetch_patient_context(
     user_db: Client,
     *,
@@ -979,6 +992,7 @@ async def fetch_patient_context(
             "therapy_type": str(t.get("therapy_type") or "ALTRO").strip().upper(),
             "drug_name": scrub_free_text(t.get("drug_name"), masking_map),
             "dosage": scrub_free_text(t.get("dosage"), masking_map),
+            "scheduled_time": str(t.get("scheduled_time") or "").strip()[:5] or None,
         }
         for t in therapies_rows
         if t.get("drug_name")
@@ -992,7 +1006,7 @@ async def fetch_patient_context(
             active_therapies=active_therapies_clean,
         )
 
-    joined = "\n\n".join(sections)
+    joined = sanitize_xml_tag_content("\n\n".join(sections))
     context_xml = f"<contesto_paziente>\n{joined}\n</contesto_paziente>"
     return PatientContextResult(
         context_xml=context_xml,
@@ -1009,13 +1023,14 @@ def build_dual_rag_message(
     clinical_chunks: list[RetrievedChunk] | None = None,
 ) -> str:
     """Combina `<contesto_paziente>`, `<contesto_clinico>` e `<messaggio_utente>` nell'ultimo turno utente."""
+    safe_user_message = sanitize_xml_tag_content(user_message)
     clinical_xml = format_rag_context(clinical_chunks or [])
     blocks = [b for b in (patient_context_xml.strip(), clinical_xml.strip()) if b]
     if not blocks:
-        return user_message
+        return safe_user_message
 
     joined_context = "\n\n".join(blocks)
     return (
         f"{joined_context}\n\n"
-        f"<messaggio_utente>\n{user_message}\n</messaggio_utente>"
+        f"<messaggio_utente>\n{safe_user_message}\n</messaggio_utente>"
     )

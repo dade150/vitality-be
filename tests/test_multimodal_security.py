@@ -188,3 +188,48 @@ def test_strip_png_exif_and_text_metadata():
     assert b"RSSMRA70A01H501U" not in res.clean_bytes
     assert res.clean_bytes.startswith(b"\x89PNG\r\n\x1a\n")
 
+
+def test_process_valid_webp_and_mime_aliases():
+    from vitality_be.services.multimodal import process_raw_attachment_bytes
+
+    # Minimal valid WebP (VP8 chunk + EXIF chunk da rimuovere)
+    vp8_payload = b"\x00" * 8
+    vp8_chunk = b"VP8 " + len(vp8_payload).to_bytes(4, "little") + vp8_payload
+    exif_payload = b"GPS_WEBP_45_1234"
+    exif_chunk = b"EXIF" + len(exif_payload).to_bytes(4, "little") + exif_payload
+    body = b"WEBP" + vp8_chunk + exif_chunk
+    minimal_webp = b"RIFF" + len(body).to_bytes(4, "little") + body
+
+    webp_res = process_raw_attachment_bytes(
+        raw_bytes=minimal_webp,
+        mime_type="image/webp",
+        kind="medical_report",
+    )
+    assert webp_res.mime_type == "image/webp"
+    assert webp_res.exif_stripped is True
+    assert b"GPS_WEBP_45_1234" not in webp_res.clean_bytes
+    assert webp_res.clean_bytes.startswith(b"RIFF") and webp_res.clean_bytes[8:12] == b"WEBP"
+
+    # Alias MIME e parametri (es. image/jpg, image/jpeg; charset=binary, image/x-png, octet-stream)
+    jpg_alias = process_raw_attachment_bytes(
+        raw_bytes=MINIMAL_JPEG,
+        mime_type="image/jpg; charset=binary",
+        kind="meal_photo",
+    )
+    assert jpg_alias.mime_type == "image/jpeg"
+
+    png_alias = process_raw_attachment_bytes(
+        raw_bytes=MINIMAL_PNG,
+        mime_type="image/x-png",
+        kind="medical_report",
+    )
+    assert png_alias.mime_type == "image/png"
+
+    sniffed_webp = process_raw_attachment_bytes(
+        raw_bytes=minimal_webp,
+        mime_type="application/octet-stream",
+        kind="medical_report",
+    )
+    assert sniffed_webp.mime_type == "image/webp"
+
+

@@ -125,7 +125,7 @@ def test_export_my_personal_data_includes_dialog2_reports_content_and_app_logs()
             {
                 "id": 1,
                 "source_name": "esami.pdf",
-                "source_path": "user-789/esami.pdf",
+                "file_path": "user-789/esami.pdf",
                 "clean_summary": "Sintesi referto",
                 "content": "Testo referto completo originale",
             }
@@ -133,9 +133,8 @@ def test_export_my_personal_data_includes_dialog2_reports_content_and_app_logs()
         "app_logs": [
             {
                 "id": 10,
-                "level": "INFO",
                 "message": "Caricamento referto",
-                "route": "/reports",
+                "context": "AddReportScreen",
                 "created_at": "2026-11-04T08:00:00Z",
             }
         ],
@@ -155,20 +154,36 @@ def test_export_my_personal_data_includes_dialog2_reports_content_and_app_logs()
     assert bundle["application_logs"][0]["message"] == "Caricamento referto"
 
 
-def test_require_ai_health_consent_allowed_by_token():
+def test_require_ai_health_consent_fail_closed_ignores_user_metadata():
+    # Anche se user_metadata (editabile lato client) ha ai_health_consent=True, se la riga
+    # manca su public.user il controllo deve bloccare con HTTP 403 (fail-closed).
     user = CurrentUser(id="user-ai-1", email="ai1@test.it", token="tok", ai_health_consent=True)
     db = FakeUserDb()
 
-    # Consenso presente nel token: passa immediatamente senza interrogare DB
-    res = run_coro(require_ai_health_consent(user=user, user_db=db))
-    assert res is None
+    with pytest.raises(HTTPException) as exc_info:
+        run_coro(require_ai_health_consent(user=user, user_db=db))
+
+    assert exc_info.value.status_code == 403
 
 
-def test_require_ai_health_consent_allowed_by_db_fallback():
+def test_require_ai_health_consent_fail_closed_503_on_db_error():
+    user = CurrentUser(id="user-ai-err", email="err@test.it", token="tok", ai_health_consent=True)
+
+    class BrokenDb:
+        def table(self, _name: str):
+            raise RuntimeError("DB timeout")
+
+    with pytest.raises(HTTPException) as exc_info:
+        run_coro(require_ai_health_consent(user=user, user_db=BrokenDb()))
+
+    assert exc_info.value.status_code == 503
+
+
+def test_require_ai_health_consent_allowed_by_db():
     user = CurrentUser(id="user-ai-2", email="ai2@test.it", token="tok", ai_health_consent=False)
-    db = FakeUserDb(table_data={"user": [{"ai_health_consent": True}]})
+    db = FakeUserDb(table_data={"user": [{"ai_health_consent": True, "consenso_privacy": True}]})
 
-    # Consenso assente nel token ma presente in DB: passa
+    # Consenso verificato nella tabella autoritativa public.user: passa
     res = run_coro(require_ai_health_consent(user=user, user_db=db))
     assert res is None
 

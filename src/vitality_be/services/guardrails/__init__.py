@@ -10,6 +10,8 @@ from typing import Literal
 from vitality_be.services.guardrails.classifier import (
     GuardrailClassification,
     classify_user_input,
+    extract_requested_pdf_months,
+    is_explicit_pdf_summary_request,
 )
 from vitality_be.services.guardrails.output_checker import (
     PRESCRIPTION_DISCLAIMER,
@@ -42,6 +44,8 @@ __all__ = [
     "check_emergency_input",
     "check_jailbreak_input",
     "classify_user_input",
+    "is_explicit_pdf_summary_request",
+    "extract_requested_pdf_months",
     "check_and_sanitize_output",
     "EMERGENCY_REPLY_HYPO",
     "EMERGENCY_REPLY_GENERAL",

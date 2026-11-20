@@ -30,7 +30,7 @@ class RequestContextMiddleware:
                     (b"referrer-policy", b"no-referrer"),
                     (b"strict-transport-security", b"max-age=63072000; includeSubDomains; preload"),
                 ]
-                if is_api:
+                if is_api and not any(k.lower() == b"cache-control" for k, _ in headers):
                     headers.append((b"cache-control", b"no-store"))
                 message["headers"] = headers
             await send(message)

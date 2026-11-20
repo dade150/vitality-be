@@ -381,9 +381,11 @@ def process_raw_attachment_bytes(
     max_bytes: int = 5 * 1024 * 1024,
 ) -> ProcessedAttachment:
     """Valida e ripulisce in RAM un allegato partendo direttamente dai byte grezzi (es. upload multipart)."""
-    normalized_mime = (mime_type or "").strip().lower()
-    if normalized_mime == "image/jpg":
+    normalized_mime = (mime_type or "").split(";", 1)[0].strip().lower()
+    if normalized_mime in ("image/jpg", "image/pjpeg"):
         normalized_mime = "image/jpeg"
+    elif normalized_mime == "image/x-png":
+        normalized_mime = "image/png"
     elif normalized_mime in ("application/octet-stream", "binary/octet-stream", ""):
         sniffed = _sniff_mime_from_magic_bytes(raw_bytes)
         if sniffed:

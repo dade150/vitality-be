@@ -416,3 +416,227 @@ def test_pii_scrubbing_advances_birthdate_relatives_and_hospital_filter():
     assert "RSSMRA60A01H501Z" not in scrubbed_tab
     assert "01/01/1960" not in scrubbed_tab
     assert "GLICEMIA BASE: 110 mg/dL" in scrubbed_tab
+
+
+def test_extract_clinical_proposals_multimodal_meal_and_glucometer_photos():
+    fixed_now = datetime(2026, 11, 20, 16, 0, tzinfo=ROME_TZ)
+    fake_photo = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+
+    # 1. Foto pasto (yogurt) anche con didascalia breve/neutra
+    meal_batch = LLMExtractionBatch(
+        items=[
+            RawExtractedItem(
+                target_table="meals",
+                meal_type="SPUNTINO_POMERIGGIO",
+                meal_description="Yogurt bianco intero 125 g",
+                carbs_grams=6,
+                calories=82,
+                is_estimated=False,
+                timestamp_iso="2026-11-20T16:00:00+01:00",
+            )
+        ]
+    )
+    meal_llm = FakeStructuredLLM(structured_batch=meal_batch)
+    meal_props = _run_coro_sync(
+        extract_clinical_proposals(
+            meal_llm,
+            [ChatMessage("user", "Ciao")],
+            media_bytes=fake_photo,
+            media_mime_type="image/jpeg",
+            attachment_kind="meal_photo",
+            now=fixed_now,
+        )
+    )
+    assert len(meal_llm.structured_calls) == 1
+    assert meal_llm.structured_calls[0]["media_bytes"] == fake_photo
+    assert meal_llm.structured_calls[0]["media_mime_type"] == "image/jpeg"
+    assert '<allegato_multimodale tipo="meal_photo">' in meal_llm.structured_calls[0]["messages"][0].content
+    assert len(meal_props) == 1
+    assert meal_props[0].target_table == "meals"
+    assert meal_props[0].data["description"] == "Yogurt bianco intero 125 g"
+    assert meal_props[0].data["carbs_grams"] == 6
+
+    # 2. Foto glucometro senza numero scritto nel testo -> NON deve essere scartato dal guardrail testuale
+    gluc_batch = LLMExtractionBatch(
+        items=[
+            RawExtractedItem(
+                target_table="diabetes_data",
+                metric_type="GLICEMIA",
+                metric_value="128",
+                timestamp_iso="2026-11-20T16:00:00+01:00",
+            )
+        ]
+    )
+    gluc_llm = FakeStructuredLLM(structured_batch=gluc_batch)
+    gluc_props = _run_coro_sync(
+        extract_clinical_proposals(
+            gluc_llm,
+            [ChatMessage("user", "Ecco la lettura del mio glucometro.")],
+            media_bytes=fake_photo,
+            media_mime_type="image/jpeg",
+            attachment_kind="glucometer_photo",
+            now=fixed_now,
+        )
+    )
+    assert len(gluc_props) == 1
+    assert gluc_props[0].target_table == "diabetes_data"
+    assert gluc_props[0].data["metric_type"] == "GLICEMIA"
+    assert gluc_props[0].data["metric_value"] == "128"
+
+
+def test_chat_pipeline_meal_photo_passes_media_to_extractor(monkeypatch):
+    fake_photo = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+    meal_batch = LLMExtractionBatch(
+        items=[
+            RawExtractedItem(
+                target_table="meals",
+                meal_type="SPUNTINO_POMERIGGIO",
+                meal_description="Yogurt greco alla fragola 150 g",
+                carbs_grams=14,
+                calories=130,
+                is_estimated=True,
+            )
+        ]
+    )
+
+    class MultimodalFakeLLM(FakeStructuredLLM):
+        async def chat(
+            self,
+            messages: list[ChatMessage],
+            *,
+            system: str | None = None,
+            media_bytes: bytes | None = None,
+            media_mime_type: str | None = None,
+        ) -> str:
+            self.chat_calls.append((messages, system))
+            return "Ottimo spuntino! Puoi confermare lo yogurt nella scheda qui sotto."
+
+    async def _seq_gather(*coros):
+        return [await c for c in coros]
+
+    monkeypatch.setattr("vitality_be.services.chat.asyncio.gather", _seq_gather)
+    llm = MultimodalFakeLLM(structured_batch=meal_batch)
+
+    res = _run_coro_sync(
+        chat_service.run_chat_pipeline(
+            llm,
+            user_message="Ecco la foto del mio pasto. Puoi analizzarlo dal punto di vista nutrizionale?",
+            media_bytes=fake_photo,
+            media_mime_type="image/jpeg",
+            attachment_kind="meal_photo",
+        )
+    )
+    assert len(res.proposed_entries) == 1
+    assert res.proposed_entries[0].target_table == "meals"
+    assert "Yogurt" in res.proposed_entries[0].data["description"]
+    assert any(c["media_bytes"] == fake_photo for c in llm.structured_calls)
+
+
+def test_therapy_log_generic_phrase_time_disambiguation_and_id_validation():
+    fixed_now = datetime(2026, 11, 20, 8, 15, tzinfo=ROME_TZ)
+
+    # 1. Utente dice "Ho preso il farmaco" senza nominarlo e ha 1 sola terapia attiva -> auto-match!
+    generic_batch = LLMExtractionBatch(
+        items=[
+            RawExtractedItem(
+                target_table="therapy_logs",
+                drug_name=None,
+                therapy_id=None,
+                therapy_status="ASSUNTA",
+                timestamp_iso="2026-11-20T08:15:00+01:00",
+            )
+        ]
+    )
+    single_therapies = [
+        {"id": 11, "drug_name": "Metformina 500", "therapy_type": "COMPRESSE_ORALI", "dosage": "500 mg", "scheduled_time": "08:00"},
+    ]
+    llm1 = FakeStructuredLLM(structured_batch=generic_batch)
+    props1 = _run_coro_sync(
+        extract_clinical_proposals(
+            llm1,
+            [ChatMessage("user", "Ho preso il farmaco")],
+            active_therapies=single_therapies,
+            now=fixed_now,
+        )
+    )
+    assert len(props1) == 1
+    assert props1[0].target_table == "therapy_logs"
+    assert props1[0].is_complete is True
+    assert props1[0].data["therapy_id"] == 11
+    assert props1[0].data["drug_name_mentioned"] == "Metformina 500"
+    assert "orario: 08:00" in llm1.structured_calls[0]["messages"][0].content
+
+    # 2. Utente dice "Ho preso il farmaco" con 2 terapie diverse -> mostra comunque la card con therapy_id mancante (menu a tendina)
+    two_therapies = [
+        {"id": 11, "drug_name": "Metformina", "therapy_type": "COMPRESSE_ORALI", "dosage": "500 mg", "scheduled_time": "08:00"},
+        {"id": 12, "drug_name": "Ramipril", "therapy_type": "COMPRESSE_ORALI", "dosage": "5 mg", "scheduled_time": "08:00"},
+    ]
+    llm2 = FakeStructuredLLM(structured_batch=generic_batch)
+    props2 = _run_coro_sync(
+        extract_clinical_proposals(
+            llm2,
+            [ChatMessage("user", "Ho preso il farmaco")],
+            active_therapies=two_therapies,
+            now=fixed_now,
+        )
+    )
+    assert len(props2) == 1
+    assert props2[0].target_table == "therapy_logs"
+    assert props2[0].is_complete is False
+    assert "therapy_id" in props2[0].missing_fields
+    assert props2[0].data["therapy_id"] is None
+
+    # 3. Stesso farmaco in 2 orari (08:00 e 20:00) + LLM allucina therapy_id=999 -> valida e disambigua per orario!
+    same_drug_two_times = [
+        {"id": 21, "drug_name": "Metformina", "therapy_type": "COMPRESSE_ORALI", "dosage": "1000 mg", "scheduled_time": "08:00"},
+        {"id": 22, "drug_name": "Metformina", "therapy_type": "COMPRESSE_ORALI", "dosage": "1000 mg", "scheduled_time": "20:00"},
+    ]
+    evening_batch = LLMExtractionBatch(
+        items=[
+            RawExtractedItem(
+                target_table="therapy_logs",
+                drug_name="Metformina",
+                therapy_id=999,  # ID inesistente allucinato!
+                therapy_status="ASSUNTA",
+                timestamp_iso="2026-11-20T20:10:00+01:00",
+            )
+        ]
+    )
+    llm3 = FakeStructuredLLM(structured_batch=evening_batch)
+    props3 = _run_coro_sync(
+        extract_clinical_proposals(
+            llm3,
+            [ChatMessage("user", "Stasera alle 20:10 ho preso la metformina")],
+            active_therapies=same_drug_two_times,
+            now=datetime(2026, 11, 20, 20, 15, tzinfo=ROME_TZ),
+        )
+    )
+    assert len(props3) == 1
+    assert props3[0].is_complete is True
+    assert props3[0].data["therapy_id"] == 22
+
+    # Alle 16:00, tra 08:00 (finestra aperta) e 20:00 (finestra chiusa fino alle 19:30), sceglie 08:00 (id=21)
+    afternoon_batch = LLMExtractionBatch(
+        items=[
+            RawExtractedItem(
+                target_table="therapy_logs",
+                drug_name="Metformina",
+                therapy_id=None,
+                therapy_status="ASSUNTA",
+                timestamp_iso="2026-11-20T16:00:00+01:00",
+            )
+        ]
+    )
+    llm4 = FakeStructuredLLM(structured_batch=afternoon_batch)
+    props4 = _run_coro_sync(
+        extract_clinical_proposals(
+            llm4,
+            [ChatMessage("user", "Ho preso la metformina")],
+            active_therapies=same_drug_two_times,
+            now=datetime(2026, 11, 20, 16, 0, tzinfo=ROME_TZ),
+        )
+    )
+    assert len(props4) == 1
+    assert props4[0].data["therapy_id"] == 21
+
+

@@ -26,36 +26,18 @@ from vitality_be.schemas.nutrition import (
     MealTypeEnum,
     RecognizedFoodItem,
 )
-# Regex difensive per rimuovere PII accidentali nel testo libero del pasto (GDPR Art. 5, 25)
-_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-_CF_RE = re.compile(
-    r"\b[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPR-T][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]\b",
-    re.IGNORECASE,
-)
-_PHONE_RE = re.compile(
-    r"(?:(?:\+|00)39[\s.-]?)?(?:3\d{2}|0\d{1,3})[\s.-]?\d{3}[\s.-]?\d{3,4}\b"
-)
-_IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b")
-_HEALTH_CARD_RE = re.compile(r"\b(?:8038000\d{13}|\d{16,20})\b")
-_ADDRESS_RE = re.compile(
-    r"\b(?:via|viale|piazza|corso|largo|vicolo)\s+[A-ZÀ-Úa-zà-ú']+(?:\s+[A-ZÀ-Úa-zà-ú']+){0,3}"
-    r"(?:\s*,\s*|\s+(?:n\.?|civico\s+)?)\d{1,4}[A-Za-z]?\b",
-    re.IGNORECASE,
+from vitality_be.services.guardrails.output_checker import check_and_sanitize_output
+from vitality_be.services.guardrails.rules import check_jailbreak_input
+from vitality_be.services.patient_context import (
+    PatientMaskingMap,
+    sanitize_xml_tag_content,
+    scrub_free_text as _full_scrub_free_text,
 )
 
 
-def scrub_free_text(text: str | None) -> str:
-    """Rimuove PII sensibili prima dell'invio del testo a Vertex AI."""
-    if not text:
-        return ""
-    cleaned = str(text)
-    cleaned = _EMAIL_RE.sub("[EMAIL_RIMOSSA]", cleaned)
-    cleaned = _CF_RE.sub("[CF_RIMOSSO]", cleaned)
-    cleaned = _IBAN_RE.sub("[IBAN_RIMOSSO]", cleaned)
-    cleaned = _HEALTH_CARD_RE.sub("[TESSERA_SANITARIA_RIMOSSA]", cleaned)
-    cleaned = _PHONE_RE.sub("[TELEFONO_RIMOSSO]", cleaned)
-    cleaned = _ADDRESS_RE.sub("[INDIRIZZO_RIMOSSO]", cleaned)
-    return cleaned
+def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = None) -> str:
+    """Rimuove PII sensibili (inclusi nomi, medici, strutture, date di nascita) prima dell'invio a Vertex AI."""
+    return _full_scrub_free_text(text, masking_map)
 
 _STOPWORDS_IT = {
     "a", "ad", "al", "all", "alla", "alle", "alli", "allo", "agli", "ai",
@@ -231,8 +213,25 @@ def _build_nutrition_prompt(
         f"6. Se nessun candidato CREA corrisponde per un ingrediente, lascia matched_food_code = null e fornisci fallback_kcal_per_100g e fallback_carbs_per_100g stimati in modo attendibile.\n"
         f"7. La clinical_note (se presente) deve essere brevissima (max 140 caratteri) e puramente educativa (es. impatto su indice glicemico o combinazione con fibre), MAI prescrittiva o farmacologica.\n\n"
         f"<candidati_crea>\n{candidates_block}\n</candidati_crea>\n\n"
-        f"<pasto_utente>\n{description}\n</pasto_utente>"
+        f"<pasto_utente>\n{sanitize_xml_tag_content(description)}\n</pasto_utente>"
     )
+
+
+async def _resolve_user_masking_map(user_db: Client) -> PatientMaskingMap:
+    if not hasattr(user_db, "table"):
+        return PatientMaskingMap()
+    try:
+        resp = await _execute_query_nonblocking(
+            user_db.table("user").select("name, surname").limit(1)
+        )
+        rows = getattr(resp, "data", None)
+        if isinstance(rows, list) and rows:
+            fn = str(rows[0].get("name") or "").strip() or None
+            ln = str(rows[0].get("surname") or "").strip() or None
+            return PatientMaskingMap(first_name=fn, last_name=ln)
+    except Exception:
+        pass
+    return PatientMaskingMap()
 
 
 async def estimate_meal_nutrition(
@@ -242,10 +241,23 @@ async def estimate_meal_nutrition(
     llm: LLMProvider,
 ) -> MealEstimateResponse:
     """Esegue la stima nutrizionale del pasto garantendo robustezza, GDPR e accuratezza matematica."""
-    # 1. Scrubbing preventivo PII (GDPR)
-    clean_desc = scrub_free_text(request.description).strip()
+    # 0. Guardrail L1 anti-jailbreak sull'input libero
+    if check_jailbreak_input(request.description):
+        logger.warning("nutrition L1 jailbreak blocked")
+        def_kcal, def_carbs = _MEAL_TYPE_DEFAULTS.get(request.meal_type, (400, 50))
+        return MealEstimateResponse(
+            total_calories=def_kcal,
+            total_carbs_grams=def_carbs,
+            confidence="LOW",
+            items=[],
+            notes="Descrizione non valida per la stima nutrizionale. Inserisci solo gli alimenti consumati.",
+        )
+
+    # 1. Scrubbing preventivo completo PII (GDPR Art. 5, 25) con nome/cognome paziente
+    masking_map = await _resolve_user_masking_map(user_db)
+    clean_desc = scrub_free_text(request.description, masking_map).strip()
     if not clean_desc:
-        clean_desc = request.description.strip()
+        clean_desc = request.meal_type.value
 
     # 2. Retrieval candidati su Supabase foods
     tokens = extract_search_tokens(clean_desc)
@@ -394,11 +406,17 @@ async def estimate_meal_nutrition(
         # Se tutti gli item provengono da CREA, la confidenza è HIGH, altrimenti MEDIUM
         all_crea = all(it.source == "CREA" for it in recognized_items)
         confidence = "HIGH" if all_crea else (decomposition.confidence if decomposition else "MEDIUM")
-        note = decomposition.clinical_note if (decomposition and decomposition.clinical_note) else None
+        raw_note = decomposition.clinical_note if (decomposition and decomposition.clinical_note) else None
+        if raw_note:
+            # Guardrail L3 sulla clinical_note: nessuna indicazione posologica/diagnostica
+            checked_note = check_and_sanitize_output(raw_note)
+            note = checked_note.sanitized_text[:180] if not checked_note.triggered else None
+        else:
+            note = None
 
-    # Calcolo totali complessivi
+    # Calcolo totali complessivi (coerente con vincolo CHECK DB carbs_grams <= 1000)
     total_kcal = min(10000, max(0, sum(it.calories for it in recognized_items)))
-    total_carbs = min(2000, max(0, round(sum(it.carbs_grams for it in recognized_items))))
+    total_carbs = min(1000, max(0, round(sum(it.carbs_grams for it in recognized_items))))
 
     return MealEstimateResponse(
         total_calories=total_kcal,

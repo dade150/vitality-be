@@ -28,3 +28,7 @@ Il tuo compito è analizzare il messaggio dell'utente (o l'ultimo turno della co
 ## 4. Presenza di Dati da Registrare (`has_loggable_data`)
 - Imposta `has_loggable_data: true` SOLO se l'utente sta comunicando un proprio dato reale o una misurazione da memorizzare nel diario (es. un valore di glicemia o pressione, un pasto consumato, una sessione di attività fisica svolta con o senza durata, il peso corporeo, un farmaco assunto o un appuntamento medico).
 - Imposta `false` per domande puramente informative, teoriche o riflessive (es. *"Quale frutta ha meno zuccheri?"*, *"Perché la glicemia si alza al mattino?"*).
+
+## 5. Richiesta Report Clinico PDF Riepilogativo (`wants_pdf_summary`)
+- Imposta `wants_pdf_summary: true` SOLO se l'utente chiede esplicitamente di generare, preparare, creare, esportare o scaricare il proprio report/riepilogo clinico PDF per il medico o la visita (es. *"Generami il report PDF per il medico"*, *"Preparami il riepilogo degli ultimi 2 mesi da portare alla visita"*).
+- Imposta sempre `wants_pdf_summary: false` se l'utente sta caricando/allegando un referto da analizzare o ponendo domande teoriche/informative.

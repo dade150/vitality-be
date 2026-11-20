@@ -21,12 +21,58 @@ _TRIVIAL_GREETING_RE = re.compile(
 )
 
 _GENERIC_ATTACHMENT_CAPTIONS_RE = re.compile(
-    r"^\s*(?:ecco\s+(?:la\s+foto|il\s+referto|il\s+pasto|lo\s+scontrino|il\s+valore|l['’]immagine|l['’]allegato)|"
-    r"foto(?:\s+pasto|\s+referto|\s+glucometro)?|referto|pasto|analizza(?:\s+l['’]allegato|\s+la\s+foto|\s+il\s+referto)?|"
+    r"^\s*(?:ecco\s+(?:la\s+foto(?:\s+del\s+mio\s+(?:pasto|farmaco))?|la\s+lettura\s+del\s+mio\s+glucometro|"
+    r"il\s+(?:mio\s+)?referto(?:\s+medico)?|il\s+documento/referto\s+allegato|"
+    r"il\s+pasto|lo\s+scontrino|il\s+valore|l['’]immagine(?:\s+allegata)?|l['’]allegato)"
+    r"(?:\.\s*puoi\s+analizzarl[oa](?:\s+dal\s+punto\s+di\s+vista\s+nutrizionale)?)?|"
+    r"foto(?:\s+pasto|\s+referto|\s+glucometro)?|referto|pasto|analizza(?:\s+l['’]allegato(?:\s+fornito)?|\s+la\s+foto|\s+il\s+referto)?|"
     r"allegat[oa]|guarda(?:\s+quest[ao])?|questo\s+[eè]\s+il\s+(?:referto|pasto)|"
     r"ti\s+(?:allego|mando)\s+(?:la\s+foto|il\s+referto|il\s+pasto))[!.,?\s]*$",
     re.IGNORECASE,
 )
+
+_PDF_ACTION_VERB_RE = re.compile(
+    r"\b(?:genera(?:mi|re)?|crea(?:mi|re)?|prepara(?:mi|re)?|esporta(?:mi|re)?|scarica(?:mi|re)?|"
+    r"fammi|produci|stampa(?:mi|re)?|vorrei(?:\s+(?:generare|creare|preparare|esportare|scaricare|avere|il))?|"
+    r"dammi|puoi\s+(?:generare|creare|preparare|esportare|fare|mandarmi|darmi)|"
+    r"mi\s+(?:generi|crei|prepari|esporti|fai|mandi))\b",
+    re.IGNORECASE,
+)
+_PDF_REPORT_NOUN_RE = re.compile(
+    r"\b(?:"
+    r"pdf\b|"
+    r"(?:report|riepilogo|resoconto|documento)(?:\s+(?:medico|clinico|riepilogativo))?\s+"
+    r"(?:in\s+pdf|pdf|per\s+il\s+(?:medico|dottore|diabetologo)|per\s+la\s+visita|da\s+portare\s+(?:al\s+medico|al\s+dottore|alla\s+visita))|"
+    r"(?:report|riepilogo|resoconto)\s+(?:medico|clinico)\b"
+    r")",
+    re.IGNORECASE,
+)
+_PDF_EXCLUDE_CONTEXT_RE = re.compile(
+    r"\b(?:allego|allegato|carico|caricato|ho\s+caricato|ti\s+mando\s+(?:il|la|quest[ao])|"
+    r"come\s+(?:funziona|si\s+legge|leggo|leggere)|cosa\s+contiene|a\s+cosa\s+serve|"
+    r"non\s+(?:voglio|vorrei|devi|serve|generare|creare|esportare|scaricare|preparare|fare))\b",
+    re.IGNORECASE,
+)
+
+
+def is_explicit_pdf_summary_request(text: str | None) -> bool:
+    """Riconosce richieste esplicite di generazione/esportazione del report clinico PDF per il medico."""
+    clean = (text or "").strip()
+    if not clean:
+        return False
+    if _PDF_EXCLUDE_CONTEXT_RE.search(clean):
+        return False
+    return bool(_PDF_ACTION_VERB_RE.search(clean) and _PDF_REPORT_NOUN_RE.search(clean))
+
+
+def extract_requested_pdf_months(text: str | None) -> int:
+    """Estrae il periodo richiesto (2, 3 o 4 mesi) dalla richiesta testuale, con default 3 mesi."""
+    clean = (text or "").lower()
+    if re.search(r"\b(?:2|due)\s+mes[ei]\b", clean):
+        return 2
+    if re.search(r"\b(?:4|quattro)\s+mes[ei]\b", clean):
+        return 4
+    return 3
 
 
 class GuardrailClassification(BaseModel):
@@ -72,6 +118,14 @@ class GuardrailClassification(BaseModel):
             "(glicemia, pressione, pasto consumato, attività svolta, peso, farmaco assunto, appuntamento)."
         ),
     )
+    wants_pdf_summary: bool = Field(
+        default=False,
+        description=(
+            "True SOLO se l'utente chiede esplicitamente di generare, creare, preparare, esportare "
+            "o scaricare il proprio report/riepilogo clinico PDF da mostrare al medico. "
+            "False se sta caricando/allegando un referto o ponendo domande informative generali."
+        ),
+    )
 
 
 async def classify_user_input(
@@ -96,6 +150,7 @@ async def classify_user_input(
             is_medical_prescription_request=False,
             emergency_risk=False,
             has_loggable_data=True,
+            wants_pdf_summary=False,
         )
 
     # Fast-Path 2: Saluto o ringraziamento breve a zero latenza (0 ms, zero token)
@@ -106,7 +161,10 @@ async def classify_user_input(
             is_medical_prescription_request=False,
             emergency_risk=False,
             has_loggable_data=has_attachment,
+            wants_pdf_summary=False,
         )
+
+    explicit_pdf_req = (not has_attachment) and is_explicit_pdf_summary_request(clean_msg)
 
     # Se il provider non supporta Structured Outputs o siamo in test unitario con EchoProvider
     if not hasattr(llm, "generate_structured"):
@@ -115,7 +173,8 @@ async def classify_user_input(
             intent="other_clinical",
             is_medical_prescription_request=False,
             emergency_risk=False,
-            has_loggable_data=True,
+            has_loggable_data=has_attachment or (not explicit_pdf_req),
+            wants_pdf_summary=explicit_pdf_req,
         )
 
     # Costruisce la finestra di contesto: fino agli ultimi 3 messaggi precedenti + messaggio corrente
@@ -148,10 +207,14 @@ async def classify_user_input(
                 intent="other_clinical",
                 is_medical_prescription_request=False,
                 emergency_risk=False,
-                has_loggable_data=True,
+                has_loggable_data=has_attachment or (not explicit_pdf_req),
+                wants_pdf_summary=explicit_pdf_req,
             )
         if has_attachment:
             classification.has_loggable_data = True
+            classification.wants_pdf_summary = False
+        elif explicit_pdf_req:
+            classification.wants_pdf_summary = True
         return classification
     except Exception as exc:
         logger.warning(
@@ -164,5 +227,6 @@ async def classify_user_input(
             intent="other_clinical",
             is_medical_prescription_request=False,
             emergency_risk=False,
-            has_loggable_data=True,
+            has_loggable_data=has_attachment or (not explicit_pdf_req),
+            wants_pdf_summary=explicit_pdf_req,
         )

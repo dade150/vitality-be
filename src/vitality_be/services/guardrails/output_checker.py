@@ -34,20 +34,28 @@ _DIAGNOSIS_PATTERNS = [
 ]
 _DIAGNOSIS_RE = re.compile("|".join(_DIAGNOSIS_PATTERNS), re.IGNORECASE)
 
+_DOCTOR_REFERRAL_RE = re.compile(r"\b(?:medic[oi]|diabetolog[oi])\b", re.IGNORECASE)
+
 
 @dataclass(frozen=True)
 class OutputCheckResult:
     sanitized_text: str
     triggered: bool
     violation_type: Literal["prescription", "diagnosis"] | None = None
+    disclaimer_added: bool = False
 
 
-def check_and_sanitize_output(reply_text: str) -> OutputCheckResult:
+def check_and_sanitize_output(
+    reply_text: str,
+    *,
+    require_doctor_redirect: bool = False,
+    preserve_whitespace: bool = False,
+) -> OutputCheckResult:
     """Verifica e corregge l'output dell'assistente se contiene prescrizioni o diagnosi asserite."""
     if not reply_text:
         return OutputCheckResult(sanitized_text=reply_text, triggered=False)
 
-    text = reply_text.strip()
+    text = reply_text if preserve_whitespace else reply_text.strip()
     triggered = False
     v_type: Literal["prescription", "diagnosis"] | None = None
 
@@ -64,13 +72,19 @@ def check_and_sanitize_output(reply_text: str) -> OutputCheckResult:
         v_type = "diagnosis" if v_type is None else v_type
         text = _DIAGNOSIS_RE.sub("[valutazione diagnostica riservata al medico]", text)
 
-    if triggered:
+    needs_disclaimer = triggered or (
+        require_doctor_redirect and not _DOCTOR_REFERRAL_RE.search(text)
+    )
+    disclaimer_added = False
+    if needs_disclaimer:
         # Appende il disclaimer solo se non già presente nel testo
         if "non posso formulare diagnosi" not in text and "Nota di sicurezza clinica" not in text:
             text = text + PRESCRIPTION_DISCLAIMER
+            disclaimer_added = True
 
     return OutputCheckResult(
         sanitized_text=text,
         triggered=triggered,
         violation_type=v_type,
+        disclaimer_added=disclaimer_added,
     )

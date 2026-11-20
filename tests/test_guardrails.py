@@ -487,6 +487,20 @@ class TestLevel3OutputSanitizer:
         assert res.triggered is True
         assert res.sanitized_text.count("non posso formulare diagnosi") == 1
 
+    def test_prescription_redirect_appends_disclaimer_when_doctor_not_mentioned(self):
+        """Se require_doctor_redirect=True e mancano 'medico'/'diabetologo', appende il disclaimer d'ufficio."""
+        raw_missing = "La metformina agisce riducendo la produzione epatica di glucosio."
+        res_missing = check_and_sanitize_output(raw_missing, require_doctor_redirect=True)
+        assert res_missing.triggered is False
+        assert res_missing.disclaimer_added is True
+        assert "Nota di sicurezza clinica" in res_missing.sanitized_text
+
+        raw_present = "Per modificare la terapia rivolgiti al tuo medico curante o diabetologo."
+        res_present = check_and_sanitize_output(raw_present, require_doctor_redirect=True)
+        assert res_present.triggered is False
+        assert res_present.disclaimer_added is False
+        assert res_present.sanitized_text == raw_present
+
 
 # ============================================================================
 # TEST PIPELINE INTEGRATA (RUN_CHAT_PIPELINE & STREAM_CHAT_PIPELINE)
@@ -555,6 +569,21 @@ class TestIntegratedChatPipelineGuardrails:
         assert res.guardrail_category == "prescription_redirect"
         assert res.is_emergency is False
         assert any("DIRETTIVA DI SICUREZZA CLINICA" in m.content for m in mock_llm.last_messages)
+        assert "Nota di sicurezza clinica" not in res.reply
+
+    def test_run_pipeline_l2_prescription_redirect_appends_disclaimer_if_missing(self):
+        """Se L2 rileva richiesta prescrittiva e l'LLM omette medico/diabetologo, L3 appende il disclaimer."""
+        mock_llm = MockClassifierLLM(
+            classification=GuardrailClassification(
+                in_topic=True,
+                intent="therapy",
+                is_medical_prescription_request=True,
+            ),
+            chat_reply="La metformina aiuta a controllare la glicemia a digiuno.",
+        )
+        res = _run_coro_sync(run_chat_pipeline(mock_llm, user_message="Posso raddoppiare la dose di metformina?"))
+        assert res.guardrail_category == "prescription_redirect"
+        assert "Nota di sicurezza clinica" in res.reply
 
     def test_run_pipeline_l3_output_sanitizer_applied(self):
         """Se l'LLM genera una prescrizione vietata, Livello 3 la corregge e applica il disclaimer."""
@@ -610,6 +639,26 @@ class TestIntegratedChatPipelineGuardrails:
         assert "[indicazione posologica non consentita]" in res.reply
         assert "Nota di sicurezza clinica" in res.reply
         assert res.tokens_used == 15
+
+    def test_stream_pipeline_l2_prescription_redirect_appends_disclaimer_if_missing(self):
+        """Pipeline SSE Streaming: se L2 rileva richiesta prescrittiva e mancano medico/diabetologo, appende disclaimer."""
+        mock_llm = MockClassifierLLM(
+            classification=GuardrailClassification(
+                in_topic=True,
+                intent="therapy",
+                is_medical_prescription_request=True,
+            ),
+            chat_reply="La metformina agisce sulla sensibilità insulinica.",
+        )
+        events = _collect_async_gen(stream_chat_pipeline(mock_llm, user_message="Posso aumentare la metformina?"))
+
+        deltas = [e["text"] for e in events if e.get("type") == "delta"]
+        done_evts = [e for e in events if e.get("type") == "done"]
+        assert len(done_evts) == 1
+        res = done_evts[0]["result"]
+        assert res.guardrail_category == "prescription_redirect"
+        assert "Nota di sicurezza clinica" in res.reply
+        assert "Nota di sicurezza clinica" in "".join(deltas)
 
     def test_stream_pipeline_native_pdf_does_not_leak_raw_bytes_to_llm(self):
         """Verifica (F-03) che un PDF nativo con CF venga estratto e de-identificato in RAM senza inviare il binario PDF a stream_chat."""

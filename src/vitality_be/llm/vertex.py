@@ -15,6 +15,7 @@ contengono identificativi del paziente (li garantisce il service, che non li ric
 """
 import asyncio
 from collections.abc import AsyncIterator
+from contextvars import ContextVar
 import random
 import time
 
@@ -61,9 +62,19 @@ _THINKING_BUDGET_25 = {
 }
 _RETRYABLE_CODES = {429, 503}
 _SENTENCE_END = (".", "!", "?", "…", "\n")
+_STREAM_TOKENS_VAR: ContextVar[int | None] = ContextVar("vertex_stream_tokens_used", default=None)
 
 
 class VertexProvider:
+    @property
+    def last_stream_tokens_used(self) -> int | None:
+        """Token usati dall'ultimo stream nel task asincrono corrente (isolato per richiesta con ContextVar)."""
+        return _STREAM_TOKENS_VAR.get()
+
+    @last_stream_tokens_used.setter
+    def last_stream_tokens_used(self, value: int | None) -> None:
+        _STREAM_TOKENS_VAR.set(value)
+
     def __init__(
         self,
         *,
@@ -80,7 +91,6 @@ class VertexProvider:
         self.model = model
         self._timeout_s = timeout_s
         self._backoff = retry_backoff_s
-        self.last_stream_tokens_used: int | None = None
         # Client creato UNA volta e riusato (nessuna API key: Application Default Credentials).
         # Timeout in ms; il limite vero è la scadenza totale gestita in chat().
         self._client = client or genai.Client(

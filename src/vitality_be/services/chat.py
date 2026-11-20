@@ -25,6 +25,7 @@ from vitality_be.services.guardrails import (
     check_emergency_input,
     check_jailbreak_input,
     classify_user_input,
+    extract_requested_pdf_months,
 )
 from vitality_be.services.multimodal import AttachmentKind, inspect_pdf_in_ram
 from vitality_be.services.patient_context import (
@@ -34,6 +35,7 @@ from vitality_be.services.patient_context import (
     fetch_patient_context,
     mask_user_text_with_dynamic_tokens,
     rehydrate_assistant_reply,
+    sanitize_xml_tag_content,
     scrub_free_text,
     scrub_report_text,
 )
@@ -60,6 +62,76 @@ class ChatPipelineResult:
     rag_chunks: list[dict[str, Any]] = field(default_factory=list)
     is_emergency: bool = False
     guardrail_category: GuardrailCategory | None = "in_topic"
+    suggested_action: dict[str, Any] | None = None
+
+
+def _build_pdf_summary_action_and_directive(
+    classification: Any,
+    user_message: str,
+    *,
+    has_attachment: bool,
+) -> tuple[dict[str, Any] | None, str]:
+    """Se l'utente richiede esplicitamente il report PDF per il medico (e non ci sono blocchi),
+    restituisce l'azione suggerita per il client e la direttiva UI per il modello."""
+    if has_attachment:
+        return None, ""
+    if getattr(classification, "is_medical_prescription_request", False):
+        return None, ""
+    if not getattr(classification, "wants_pdf_summary", False):
+        return None, ""
+
+    months = extract_requested_pdf_months(user_message)
+    action = {"type": "export_pdf_summary", "months": months}
+    directive = (
+        f"\n\n[DIRETTIVA DI INTERFACCIA: L'utente ha richiesto di generare il report clinico "
+        f"PDF riepilogativo per il medico (periodo pre-selezionato: ultimi {months} mesi). "
+        f"L'app mostrerà automaticamente sotto la tua risposta il riquadro interattivo con il "
+        f"pulsante per generare, scaricare e salvare il PDF (dove potrà eventualmente cambiare "
+        f"tra 2, 3 o 4 mesi). Rispondi con 1-2 frasi brevi e cordiali confermando che trova "
+        f"il pulsante qui sotto per scaricare il report. Non dire mai di non poter generare PDF.]"
+    )
+    return action, directive
+
+
+def _inject_retrieved_reports_into_context(
+    patient_context_xml: str,
+    reports_res: list[dict[str, Any]],
+    masking_map: PatientMaskingMap,
+) -> tuple[str, PatientMaskingMap]:
+    """De-identifica e inserisce i referti storici recuperati DENTRO `<contesto_paziente>` (GDPR Art. 25 + anti XML breakout)."""
+    if not reports_res:
+        return patient_context_xml, masking_map
+
+    updated_map = masking_map
+    rep_lines: list[str] = []
+    for r in reports_res:
+        raw_name = str(r.get("source_name") or "Referto medico")
+        raw_body = str(r.get("clean_summary") or r.get("content") or "")[:300]
+        clean_name, updated_map = scrub_report_text(raw_name, updated_map)
+        clean_body, updated_map = scrub_report_text(raw_body, updated_map)
+        r_type = sanitize_xml_tag_content(str(r.get("report_type") or "REFERTO"))
+        r_date = sanitize_xml_tag_content(str(r.get("report_at") or "")[:10])
+        rep_lines.append(
+            f"- Referto [{r_type}] - {sanitize_xml_tag_content(clean_name)} ({r_date}): "
+            f"{sanitize_xml_tag_content(clean_body)}"
+        )
+
+    section_block = "[Referti Storici Pertinenti Recuperati]\n" + "\n".join(rep_lines)
+    closing_tag = "</contesto_paziente>"
+    if closing_tag in patient_context_xml:
+        idx = patient_context_xml.rfind(closing_tag)
+        updated_xml = (
+            patient_context_xml[:idx].rstrip()
+            + "\n\n"
+            + section_block
+            + "\n"
+            + patient_context_xml[idx:]
+        )
+    elif patient_context_xml.strip():
+        updated_xml = f"<contesto_paziente>\n{sanitize_xml_tag_content(patient_context_xml.strip())}\n\n{section_block}\n</contesto_paziente>"
+    else:
+        updated_xml = f"<contesto_paziente>\n{section_block}\n</contesto_paziente>"
+    return updated_xml, updated_map
 
 
 async def _archive_verified_chat_report(
@@ -72,6 +144,7 @@ async def _archive_verified_chat_report(
     user_id: str | None = None,
     fallback_proposals: list[ProposedEntry] | None = None,
     fallback_text: str | None = None,
+    masking_map: PatientMaskingMap | None = None,
 ) -> list[ProposedEntry]:
     """Archivia in `public.patient_reports` un referto medico verificato allegato in chat.
 
@@ -81,7 +154,10 @@ async def _archive_verified_chat_report(
     is_med = bool(rep and rep.is_medical_report)
     proposals = list((rep.proposed_entries if rep else None) or fallback_proposals or [])
     clean_sum = (rep.clean_summary if rep else None) or ""
-    scrub_txt = (rep.scrubbed_content if rep else None) or fallback_text or ""
+    raw_fallback_scrubbed = ""
+    if fallback_text:
+        raw_fallback_scrubbed, _ = scrub_report_text(fallback_text, masking_map)
+    scrub_txt = (rep.scrubbed_content if rep else None) or raw_fallback_scrubbed or ""
     rep_type = (rep.report_type if rep else None) or "ANALISI_SANGUE"
     rep_at = (rep.report_at if rep else None)
 
@@ -92,6 +168,7 @@ async def _archive_verified_chat_report(
     if user_db is None or not hasattr(user_db, "table") or not (clean_sum or proposals or scrub_txt):
         return proposals
 
+    saved_file_path: str | None = None
     try:
         from datetime import datetime, timezone
         import re
@@ -184,6 +261,8 @@ async def _archive_verified_chat_report(
                 }
                 if uid:
                     fb_row["user_id"] = uid
+                if saved_file_path:
+                    fb_row["file_path"] = saved_file_path
                 inserted = await asyncio.to_thread(
                     lambda: user_db.table("patient_reports").insert(fb_row).execute()
                 )
@@ -308,6 +387,18 @@ async def run_chat_pipeline(
         except Exception as insp_exc:
             logger.debug("Ispezione PDF chat ignorata exc={}", type(insp_exc).__name__)
 
+    # Guardrail L1 anti Indirect Prompt Injection anche sul testo estratto dal PDF nativo
+    if extracted_pdf_text and check_jailbreak_input(extracted_pdf_text):
+        logger.warning("guardrails L1 indirect prompt injection blocked in PDF")
+        return ChatPipelineResult(
+            reply=JAILBREAK_REPLY,
+            proposed_entries=[],
+            tokens_used=None,
+            rag_chunks=[],
+            is_emergency=False,
+            guardrail_category="jailbreak_blocked",
+        )
+
     full_user_input = user_message
     if extracted_pdf_text:
         full_user_input = (
@@ -323,10 +414,17 @@ async def run_chat_pipeline(
     chunks: list[RetrievedChunk] = []
     patient_context_xml = ""
 
-    # --- LIVELLO 2 + DUAL-RAG + PATIENT CONTEXT IN PARALLELO (asyncio.gather) ---
-    scrubbed_query_for_classifier = scrub_free_text(user_message)
+    # 1. Recupera PRIMA il contesto paziente + masking_map, così L2 ed Embedder ricevono SOLO testo già pseudonimizzato
+    if user_db is not None:
+        patient_ctx = await fetch_patient_context(user_db)
+        patient_context_xml = patient_ctx.context_xml
+        masking_map = patient_ctx.masking_map
+        active_therapies = patient_ctx.active_therapies
+
+    # --- LIVELLO 2 + DUAL-RAG IN PARALLELO (asyncio.gather) con masking_map attiva ---
+    scrubbed_query_for_classifier = scrub_free_text(user_message, masking_map)
     scrubbed_recent_history = [
-        ChatMessage(role=m.role, content=scrub_free_text(m.content))
+        ChatMessage(role=m.role, content=scrub_free_text(m.content, masking_map))
         for m in history[:-1][-3:]
     ]
     has_attachment_flag = bool(actual_media_bytes or extracted_pdf_text)
@@ -338,7 +436,7 @@ async def run_chat_pipeline(
     )
 
     if user_db is not None:
-        last_user_query = scrub_free_text(user_message) if user_message else "referti e salute"
+        last_user_query = scrub_free_text(user_message, masking_map) if user_message else "referti e salute"
 
         async def _fetch_rag():
             if embedder is None:
@@ -357,25 +455,14 @@ async def run_chat_pipeline(
             chunks_res = await retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder)
             return chunks_res, []
 
-        classification, (chunks, reports_res), patient_ctx = await asyncio.gather(
+        classification, (chunks, reports_res) = await asyncio.gather(
             classify_task,
             _fetch_rag(),
-            fetch_patient_context(user_db),
         )
-        patient_context_xml = patient_ctx.context_xml
-        masking_map = patient_ctx.masking_map
-        active_therapies = patient_ctx.active_therapies
 
         if reports_res:
-            rep_lines = [
-                f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
-                f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
-                for r in reports_res
-            ]
-            patient_context_xml = (
-                patient_context_xml
-                + "\n\n[Referti Storici Pertinenti Recuperati]\n"
-                + "\n".join(rep_lines)
+            patient_context_xml, masking_map = _inject_retrieved_reports_into_context(
+                patient_context_xml, reports_res, masking_map
             )
     else:
         classification = await classify_task
@@ -408,14 +495,11 @@ async def run_chat_pipeline(
     if classification.is_medical_prescription_request:
         guardrail_category = "prescription_redirect"
 
-    # De-identificazione sui turni utente prima dell'invio al provider
+    # De-identificazione su TUTTI i turni (user e assistant) prima dell'invio al provider (GDPR Art. 25)
     scrubbed_history: list[ChatMessage] = []
     for m in history:
-        if m.role == "user":
-            scrubbed_text, masking_map = scrub_report_text(m.content, masking_map)
-            scrubbed_history.append(ChatMessage(role="user", content=scrubbed_text))
-        else:
-            scrubbed_history.append(m)
+        scrubbed_text, masking_map = scrub_report_text(m.content, masking_map)
+        scrubbed_history.append(ChatMessage(role=m.role, content=scrubbed_text))
 
     chat_history = list(scrubbed_history)
     if chunks or patient_context_xml:
@@ -439,6 +523,17 @@ async def run_chat_pipeline(
         chat_history[-1] = ChatMessage(
             role="user",
             content=chat_history[-1].content + prescription_directive,
+        )
+
+    suggested_action, pdf_directive = _build_pdf_summary_action_and_directive(
+        classification,
+        user_message,
+        has_attachment=has_attachment_flag,
+    )
+    if pdf_directive:
+        chat_history[-1] = ChatMessage(
+            role="user",
+            content=chat_history[-1].content + pdf_directive,
         )
 
     # Preparazione task paralleli: generazione risposta + estrazione proposte
@@ -485,6 +580,9 @@ async def run_chat_pipeline(
                 scrubbed_history,
                 masking_map=masking_map,
                 active_therapies=active_therapies,
+                media_bytes=actual_media_bytes,
+                media_mime_type=actual_media_mime,
+                attachment_kind=attachment_kind,
             )
 
         rep = None
@@ -510,13 +608,19 @@ async def run_chat_pipeline(
                 raw_media_bytes=media_bytes,
                 raw_media_mime=media_mime_type,
                 user_id=user_id,
+                masking_map=masking_map,
             )
 
+        fallback_image_bytes = actual_media_bytes if actual_media_mime != "application/pdf" else None
+        fallback_image_mime = actual_media_mime if actual_media_mime != "application/pdf" else None
         res_proposals = await extract_clinical_proposals(
             llm,
             scrubbed_history,
             masking_map=masking_map,
             active_therapies=active_therapies,
+            media_bytes=fallback_image_bytes,
+            media_mime_type=fallback_image_mime,
+            attachment_kind=attachment_kind,
         )
         if media_mime_type == "application/pdf" or attachment_kind == "medical_report":
             rep_props = await _archive_verified_chat_report(
@@ -528,6 +632,7 @@ async def run_chat_pipeline(
                 user_id=user_id,
                 fallback_proposals=res_proposals,
                 fallback_text=extracted_pdf_text or None,
+                masking_map=masking_map,
             )
             return _merge_unique_proposals(res_proposals, rep_props)
         return res_proposals
@@ -537,11 +642,18 @@ async def run_chat_pipeline(
         rehydrated = rehydrate_assistant_reply(llm_result.text, masking_map)
 
         # --- LIVELLO 3: OUTPUT SANITIZATION GUARDRAIL ---
-        out_check = check_and_sanitize_output(rehydrated)
+        out_check = check_and_sanitize_output(
+            rehydrated,
+            require_doctor_redirect=(guardrail_category == "prescription_redirect"),
+        )
         if out_check.triggered:
             logger.warning("guardrails L3 triggered violation={}", out_check.violation_type)
             rehydrated = out_check.sanitized_text
             guardrail_category = "prescription_redirect"
+            suggested_action = None
+        elif out_check.disclaimer_added:
+            logger.info("guardrails L3 prescription disclaimer appended")
+            rehydrated = out_check.sanitized_text
 
         chunks_dicts = [
             {
@@ -561,6 +673,7 @@ async def run_chat_pipeline(
             rag_chunks=chunks_dicts,
             is_emergency=False,
             guardrail_category=guardrail_category,
+            suggested_action=suggested_action,
         )
     except LLMBlocked as exc:
         logger.warning("Risposta bloccata dai filtri code={}", exc.code)
@@ -642,6 +755,23 @@ async def stream_chat_pipeline(
         except Exception as insp_exc:
             logger.debug("Ispezione PDF stream ignorata exc={}", type(insp_exc).__name__)
 
+    # Guardrail L1 anti Indirect Prompt Injection anche sul testo estratto dal PDF nativo
+    if extracted_pdf_text and check_jailbreak_input(extracted_pdf_text):
+        logger.warning("guardrails L1 indirect prompt injection blocked in PDF (stream)")
+        yield {"type": "delta", "text": JAILBREAK_REPLY}
+        yield {
+            "type": "done",
+            "result": ChatPipelineResult(
+                reply=JAILBREAK_REPLY,
+                proposed_entries=[],
+                tokens_used=None,
+                rag_chunks=[],
+                is_emergency=False,
+                guardrail_category="jailbreak_blocked",
+            ),
+        }
+        return
+
     full_user_input = user_message
     if extracted_pdf_text:
         full_user_input = (
@@ -656,10 +786,17 @@ async def stream_chat_pipeline(
     chunks: list[RetrievedChunk] = []
     patient_context_xml = ""
 
-    # --- LIVELLO 2 + DUAL-RAG + PATIENT CONTEXT IN PARALLELO (asyncio.gather) ---
-    scrubbed_query_for_classifier = scrub_free_text(user_message)
+    # 1. Recupera PRIMA il contesto paziente + masking_map, così L2 ed Embedder ricevono SOLO testo già pseudonimizzato
+    if user_db is not None:
+        patient_ctx = await fetch_patient_context(user_db)
+        patient_context_xml = patient_ctx.context_xml
+        masking_map = patient_ctx.masking_map
+        active_therapies = patient_ctx.active_therapies
+
+    # --- LIVELLO 2 + DUAL-RAG IN PARALLELO (asyncio.gather) con masking_map attiva ---
+    scrubbed_query_for_classifier = scrub_free_text(user_message, masking_map)
     scrubbed_recent_history = [
-        ChatMessage(role=m.role, content=scrub_free_text(m.content))
+        ChatMessage(role=m.role, content=scrub_free_text(m.content, masking_map))
         for m in history[:-1][-3:]
     ]
     has_attachment_flag = bool(actual_media_bytes or extracted_pdf_text)
@@ -671,7 +808,7 @@ async def stream_chat_pipeline(
     )
 
     if user_db is not None:
-        last_user_query = scrub_free_text(user_message) if user_message else "referti e salute"
+        last_user_query = scrub_free_text(user_message, masking_map) if user_message else "referti e salute"
 
         async def _fetch_rag():
             if embedder is None:
@@ -690,25 +827,14 @@ async def stream_chat_pipeline(
             chunks_res = await retrieve_chunks(last_user_query, user_db=user_db, embedder=embedder)
             return chunks_res, []
 
-        classification, (chunks, reports_res), patient_ctx = await asyncio.gather(
+        classification, (chunks, reports_res) = await asyncio.gather(
             classify_task,
             _fetch_rag(),
-            fetch_patient_context(user_db),
         )
-        patient_context_xml = patient_ctx.context_xml
-        masking_map = patient_ctx.masking_map
-        active_therapies = patient_ctx.active_therapies
 
         if reports_res:
-            rep_lines = [
-                f"- Referto [{r.get('report_type')}] - {r.get('source_name')} ({str(r.get('report_at') or '')[:10]}): "
-                f"{str(r.get('clean_summary') or r.get('content') or '')[:300]}"
-                for r in reports_res
-            ]
-            patient_context_xml = (
-                patient_context_xml
-                + "\n\n[Referti Storici Pertinenti Recuperati]\n"
-                + "\n".join(rep_lines)
+            patient_context_xml, masking_map = _inject_retrieved_reports_into_context(
+                patient_context_xml, reports_res, masking_map
             )
     else:
         classification = await classify_task
@@ -753,11 +879,8 @@ async def stream_chat_pipeline(
 
     scrubbed_history: list[ChatMessage] = []
     for m in history:
-        if m.role == "user":
-            scrubbed_text, masking_map = scrub_report_text(m.content, masking_map)
-            scrubbed_history.append(ChatMessage(role="user", content=scrubbed_text))
-        else:
-            scrubbed_history.append(m)
+        scrubbed_text, masking_map = scrub_report_text(m.content, masking_map)
+        scrubbed_history.append(ChatMessage(role=m.role, content=scrubbed_text))
 
     chat_history = list(scrubbed_history)
     if chunks or patient_context_xml:
@@ -783,6 +906,17 @@ async def stream_chat_pipeline(
             content=chat_history[-1].content + prescription_directive,
         )
 
+    suggested_action, pdf_directive = _build_pdf_summary_action_and_directive(
+        classification,
+        user_message,
+        has_attachment=has_attachment_flag,
+    )
+    if pdf_directive:
+        chat_history[-1] = ChatMessage(
+            role="user",
+            content=chat_history[-1].content + pdf_directive,
+        )
+
     async def _extract() -> list[ProposedEntry]:
         is_report = (
             attachment_kind in ("medical_report", "pdf_document", "generic_image")
@@ -795,6 +929,9 @@ async def stream_chat_pipeline(
                 scrubbed_history,
                 masking_map=masking_map,
                 active_therapies=active_therapies,
+                media_bytes=actual_media_bytes,
+                media_mime_type=actual_media_mime,
+                attachment_kind=attachment_kind,
             )
 
         rep = None
@@ -820,13 +957,19 @@ async def stream_chat_pipeline(
                 raw_media_bytes=media_bytes,
                 raw_media_mime=media_mime_type,
                 user_id=user_id,
+                masking_map=masking_map,
             )
 
+        fallback_image_bytes = actual_media_bytes if actual_media_mime != "application/pdf" else None
+        fallback_image_mime = actual_media_mime if actual_media_mime != "application/pdf" else None
         res_proposals = await extract_clinical_proposals(
             llm,
             scrubbed_history,
             masking_map=masking_map,
             active_therapies=active_therapies,
+            media_bytes=fallback_image_bytes,
+            media_mime_type=fallback_image_mime,
+            attachment_kind=attachment_kind,
         )
         if media_mime_type == "application/pdf" or attachment_kind == "medical_report":
             rep_props = await _archive_verified_chat_report(
@@ -838,6 +981,7 @@ async def stream_chat_pipeline(
                 user_id=user_id,
                 fallback_proposals=res_proposals,
                 fallback_text=extracted_pdf_text or None,
+                masking_map=masking_map,
             )
             return _merge_unique_proposals(res_proposals, rep_props)
         return res_proposals
@@ -892,8 +1036,8 @@ async def stream_chat_pipeline(
 
         def _sanitize_delta(text: str) -> str:
             rehydrated = rehydrate_assistant_reply(text, masking_map)
-            # Rimuove prescrizioni o diagnosi vietate anche in tempo reale durante lo stream
-            out_check = check_and_sanitize_output(rehydrated)
+            # Rimuove prescrizioni o diagnosi vietate anche in tempo reale durante lo stream preservando gli spazi
+            out_check = check_and_sanitize_output(rehydrated, preserve_whitespace=True)
             # Rimuove il disclaimer qui se presente, perché verrà appeso formalmente solo alla fine
             clean_res = out_check.sanitized_text.replace(PRESCRIPTION_DISCLAIMER, "")
             return clean_res
@@ -963,9 +1107,16 @@ async def stream_chat_pipeline(
         proposals = []
 
     # --- LIVELLO 3: OUTPUT SANITIZATION GUARDRAIL ---
-    out_check = check_and_sanitize_output(rehydrated_full)
-    if out_check.triggered:
-        logger.warning("guardrails L3 triggered in stream violation={}", out_check.violation_type)
+    out_check = check_and_sanitize_output(
+        rehydrated_full,
+        require_doctor_redirect=(guardrail_category == "prescription_redirect"),
+    )
+    if out_check.triggered or out_check.disclaimer_added:
+        if out_check.triggered:
+            logger.warning("guardrails L3 triggered in stream violation={}", out_check.violation_type)
+            suggested_action = None
+        else:
+            logger.info("guardrails L3 prescription disclaimer appended in stream")
         if PRESCRIPTION_DISCLAIMER in out_check.sanitized_text and PRESCRIPTION_DISCLAIMER not in rehydrated_full:
             yield {"type": "delta", "text": PRESCRIPTION_DISCLAIMER}
         rehydrated_full = out_check.sanitized_text
@@ -993,6 +1144,7 @@ async def stream_chat_pipeline(
         rag_chunks=chunks_dicts,
         is_emergency=False,
         guardrail_category=guardrail_category,
+        suggested_action=suggested_action,
     )
     yield {"type": "done", "result": pipeline_res}
 

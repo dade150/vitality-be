@@ -327,3 +327,49 @@ def test_gdpr_export_and_delete_account_endpoints():
     assert db.rpc_called is True
 
 
+def test_extract_from_report_propagates_llm_unavailable():
+    """Verifica che errori transienti LLM (503/502) non vengano mascherati da falso HTTP 422."""
+    from vitality_be.llm.base import LLMUnavailable
+
+    class FailingLLM:
+        async def generate_structured(self, *_args, **_kwargs):
+            raise LLMUnavailable("timeout temporaneo", code="timeout")
+
+    class UnusedDb:
+        def table(self, _name):
+            class EmptyQuery:
+                def select(self, *_a, **_kw):
+                    return self
+
+                def limit(self, *_a, **_kw):
+                    return self
+
+                def execute(self):
+                    class Resp:
+                        data = []
+                    return Resp()
+            return EmptyQuery()
+
+    minimal_png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+        b"\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    processed = process_raw_attachment_bytes(
+        raw_bytes=minimal_png,
+        mime_type="image/png",
+        kind="medical_report",
+    )
+
+    with pytest.raises(LLMUnavailable):
+        _run_coro_sync(
+            process_and_ingest_report(
+                attachment=processed,
+                title="Foto Referto",
+                user_db=UnusedDb(),
+                llm=FailingLLM(),
+                embedder=EchoEmbedder(dim=1536),
+            )
+        )
+
+
+

@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from loguru import logger
 
-from vitality_be.llm.base import ChatMessage, LLMProvider
+from vitality_be.llm.base import ChatMessage, LLMError, LLMProvider, LLMUnavailable
 from vitality_be.llm.prompts import get_extraction_system_prompt
 from vitality_be.schemas.extraction import (
     DEFAULT_METRIC_UNITS,
@@ -43,6 +43,7 @@ from vitality_be.services.patient_context import (
     PatientMaskingMap,
     mask_user_text_with_dynamic_tokens,
     rehydrate_assistant_reply,
+    sanitize_xml_tag_content,
     scrub_free_text,
     scrub_report_text,
 )
@@ -151,23 +152,152 @@ def _number_appears_in_source_text(metric_value: str, source_text: str) -> bool:
     return True
 
 
+_GENERIC_DRUG_TERMS = frozenset(
+    {
+        "farmaco",
+        "il farmaco",
+        "medicina",
+        "la medicina",
+        "medicinale",
+        "il medicinale",
+        "pillola",
+        "la pillola",
+        "pastiglia",
+        "la pastiglia",
+        "compressa",
+        "la compressa",
+        "terapia",
+        "la terapia",
+        "dose",
+        "la dose",
+        "farmaco da selezionare",
+        "terapia da selezionare",
+    }
+)
+
+
+def _parse_hhmm_minutes(raw_time: Any) -> int | None:
+    if not raw_time:
+        return None
+    parts = str(raw_time).strip().split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        h, m = int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
+    if 0 <= h <= 23 and 0 <= m <= 59:
+        return h * 60 + m
+    return None
+
+
+def _iso_rome_minutes(ts_iso: str) -> int | None:
+    try:
+        dt = datetime.fromisoformat(ts_iso.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ROME_TZ)
+        local = dt.astimezone(ROME_TZ)
+        return local.hour * 60 + local.minute
+    except ValueError:
+        return None
+
+
+def _pick_best_therapy_by_time(
+    candidates: Sequence[dict[str, Any]],
+    ts_iso: str,
+) -> dict[str, Any]:
+    """Disambigua più dosi dello stesso farmaco (es. Metformina 08:00 e 20:00) usando `scheduled_time`."""
+    if len(candidates) == 1:
+        return candidates[0]
+    target_min = _iso_rome_minutes(ts_iso)
+    if target_min is None:
+        return candidates[0]
+
+    def _score(t: dict[str, Any]) -> tuple[int, int]:
+        sched = _parse_hhmm_minutes(t.get("scheduled_time"))
+        if sched is None:
+            return (2, 10_000)
+        # Preferisce una dose la cui finestra di -30 min è già aperta rispetto all'ora dichiarata
+        window_open = max(0, sched - 30)
+        is_future_locked = 1 if target_min < window_open else 0
+        return (is_future_locked, abs(target_min - sched))
+
+    return min(candidates, key=_score)
+
+
 def _match_active_therapy_id(
     drug_name: str,
     active_therapies: Sequence[dict[str, Any]],
+    *,
+    ts_iso: str | None = None,
 ) -> int | None:
     """Cerca una corrispondenza tra il farmaco nominato dall'utente e le terapie attive a DB."""
     norm_query = drug_name.strip().lower()
-    if not norm_query or not active_therapies:
+    if not norm_query or norm_query in _GENERIC_DRUG_TERMS or not active_therapies:
         return None
+    matches: list[dict[str, Any]] = []
     for t in active_therapies:
         t_id = t.get("id")
         t_drug = str(t.get("drug_name") or "").strip().lower()
         if t_id is not None and t_drug and (norm_query in t_drug or t_drug in norm_query):
             try:
-                return int(t_id)
+                int(t_id)
+                matches.append(t)
             except (TypeError, ValueError):
                 continue
-    return None
+    if not matches:
+        return None
+    best = _pick_best_therapy_by_time(matches, ts_iso) if ts_iso else matches[0]
+    return int(best["id"])
+
+
+def _resolve_active_therapy(
+    *,
+    item_therapy_id: int | None,
+    drug_name: str | None,
+    active_therapies: Sequence[dict[str, Any]],
+    ts_iso: str,
+) -> tuple[int | None, str | None]:
+    """Risolve e valida `(therapy_id, drug_name_canonico)` contro le terapie attive reali dell'utente."""
+    valid_by_id: dict[int, dict[str, Any]] = {}
+    for t in active_therapies:
+        t_id = t.get("id")
+        if t_id is None:
+            continue
+        try:
+            valid_by_id[int(t_id)] = t
+        except (TypeError, ValueError):
+            continue
+
+    clean_drug = (drug_name or "").strip()
+    is_generic = (not clean_drug) or (clean_drug.lower() in _GENERIC_DRUG_TERMS)
+
+    # 1. Valida sempre l'ID proposto dall'LLM contro gli ID reali in DB (anti-allucinazione FK)
+    if item_therapy_id is not None:
+        try:
+            cand_id = int(item_therapy_id)
+        except (TypeError, ValueError):
+            cand_id = -1
+        if cand_id in valid_by_id:
+            matched_drug = str(valid_by_id[cand_id].get("drug_name") or "").strip() or clean_drug
+            return cand_id, matched_drug
+
+    # 2. Matching per nome farmaco + disambiguazione orario (es. Metformina 08:00 vs 20:00)
+    if not is_generic:
+        matched_id = _match_active_therapy_id(clean_drug, active_therapies, ts_iso=ts_iso)
+        if matched_id is not None and matched_id in valid_by_id:
+            matched_drug = str(valid_by_id[matched_id].get("drug_name") or "").strip() or clean_drug
+            return matched_id, matched_drug
+        return None, clean_drug
+
+    # 3. Frase generica ("ho preso il farmaco"): se c'è 1 sola terapia attiva la seleziona subito
+    if len(valid_by_id) == 1:
+        only_id, only_t = next(iter(valid_by_id.items()))
+        only_drug = str(only_t.get("drug_name") or "").strip() or "Terapia"
+        return only_id, only_drug
+
+    # Più terapie attive (o nessuna) e farmaco non nominato -> lascia scegliere dal menu a tendina FE
+    return None, None
 
 
 def _clean_rehydrated_text(
@@ -357,33 +487,52 @@ def _build_proposed_entry(
             )
 
         if table == "therapy_logs":
-            drug = _clean_rehydrated_text(item.drug_name, masking_map)
-            if not drug:
-                return None
-            resolved_id = item.therapy_id or _match_active_therapy_id(drug, active_therapies)
-            if resolved_id is None and "therapy_id" not in missing:
-                missing.append("therapy_id")
+            raw_drug = _clean_rehydrated_text(item.drug_name, masking_map)
+            resolved_id, resolved_drug = _resolve_active_therapy(
+                item_therapy_id=item.therapy_id,
+                drug_name=raw_drug,
+                active_therapies=active_therapies,
+                ts_iso=ts_iso,
+            )
+            drug_label = resolved_drug or raw_drug or "Terapia da selezionare"
+            if resolved_id is None:
+                if "therapy_id" not in missing:
+                    missing.append("therapy_id")
+            else:
+                missing = [f for f in missing if f != "therapy_id"]
+
             status_raw = (item.therapy_status or "ASSUNTA").strip().upper()
             if status_raw not in ("ASSUNTA", "SALTATA", "RITARDATA"):
                 status_raw = "ASSUNTA"
 
             payload = TherapyLogProposal(
                 therapy_id=resolved_id,
-                drug_name_mentioned=drug,
+                drug_name_mentioned=drug_label,
                 taken_at=ts_iso,
                 status=status_raw,  # type: ignore[arg-type]
             )
             title = (
                 _clean_rehydrated_text(item.summary_title, masking_map)
-                or f"Terapia ({status_raw.lower()}): {drug}"
+                or (
+                    f"Terapia ({status_raw.lower()}): {drug_label}"
+                    if resolved_drug or raw_drug
+                    else f"Registrazione terapia ({status_raw.lower()})"
+                )
             )
+            note = _clean_rehydrated_text(item.assistant_note, masking_map)
+            if resolved_id is None and not note:
+                note = (
+                    "Seleziona il farmaco dal menu qui sotto prima di confermare."
+                    if active_therapies
+                    else "Configura prima almeno una terapia attiva nel Diario."
+                )
             return ProposedEntry(
                 proposal_id=proposal_id,
                 target_table="therapy_logs",
                 summary_title=title,
                 is_complete=len(missing) == 0,
                 missing_fields=missing,
-                assistant_note=_clean_rehydrated_text(item.assistant_note, masking_map),
+                assistant_note=note,
                 data=payload.model_dump(),
             )
 
@@ -463,16 +612,21 @@ async def extract_clinical_proposals(
     *,
     masking_map: PatientMaskingMap | None = None,
     active_therapies: Sequence[dict[str, Any]] = (),
+    media_bytes: bytes | None = None,
+    media_mime_type: str | None = None,
+    attachment_kind: str | None = None,
     now: datetime | None = None,
 ) -> list[ProposedEntry]:
-    """Estrae in modo asincrono e sicuro le proposte di salvataggio dai messaggi della chat.
+    """Estrae in modo asincrono e sicuro le proposte di salvataggio dai messaggi della chat
+    (testo, trascrizione vocale oppure foto di pasti/alimenti, glucometri, misuratori pressione).
 
     Garantisce **degradazione graziosa totale**: qualsiasi errore del provider LLM o di
     validazione restituisce `[]` senza mai interrompere la risposta testuale della chat.
     """
     if not hasattr(llm, "generate_structured"):
         return []
-    if not should_attempt_extraction(scrubbed_messages):
+    has_media = bool(media_bytes and media_mime_type)
+    if not has_media and not should_attempt_extraction(scrubbed_messages):
         return []
 
     iso_now, human_now = _format_rome_now(now)
@@ -482,7 +636,8 @@ async def extract_clinical_proposals(
     therapies_block = "Nessuna terapia attiva registrata."
     if active_therapies:
         t_lines = [
-            f"- id={t.get('id')}: {t.get('drug_name')} ({t.get('therapy_type')}, dosaggio: {t.get('dosage') or 'n.d.'})"
+            f"- id={t.get('id')}: {t.get('drug_name')} ({t.get('therapy_type')}, "
+            f"dosaggio: {t.get('dosage') or 'n.d.'}, orario: {t.get('scheduled_time') or 'n.d.'})"
             for t in active_therapies
         ]
         therapies_block = "\n".join(t_lines)
@@ -491,29 +646,65 @@ async def extract_clinical_proposals(
         f"[{'UTENTE' if m.role == 'user' else 'ASSISTENTE'}]: {m.content}"
         for m in recent_turns
     ]
-    extraction_prompt = (
-        f"<timestamp_corrente>\n{human_now}\n</timestamp_corrente>\n\n"
-        f"<terapie_attive_paziente>\n{therapies_block}\n</terapie_attive_paziente>\n\n"
-        f"<conversazione_recente>\n" + "\n".join(conv_lines) + "\n</conversazione_recente>"
-    )
+    prompt_parts = [
+        f"<timestamp_corrente>\n{human_now}\n</timestamp_corrente>",
+        f"<terapie_attive_paziente>\n{therapies_block}\n</terapie_attive_paziente>",
+        "<conversazione_recente>\n" + "\n".join(conv_lines) + "\n</conversazione_recente>",
+    ]
+    if has_media:
+        kind_label = attachment_kind or "generic_image"
+        prompt_parts.append(
+            f"<allegato_multimodale tipo=\"{kind_label}\">\n"
+            "L'utente ha allegato un'immagine in questo turno. Esamina attentamente la foto:\n"
+            "- Se mostra un alimento, una bevanda, uno snack o un prodotto confezionato (es. yogurt, pasta, frutta, etichetta nutrizionale), "
+            "genera una proposta per `target_table=\"meals\"` con descrizione pulita dell'alimento visibile, `meal_type` coerente con "
+            "`<timestamp_corrente>` (se non specificato dall'utente), carboidrati e calorie (letti dall'etichetta con `is_estimated=false` "
+            "se ben visibili, oppure stimati su porzione standard LARN con `is_estimated=true`).\n"
+            "- Se mostra il display di un glucometro o di un misuratore di pressione con cifre chiaramente leggibili, "
+            "genera una proposta per `target_table=\"diabetes_data\"` (`GLICEMIA` o `PRESSIONE`) con il valore esatto letto sul display. "
+            "Non inventare mai cifre se il display è sfocato o illeggibile.\n"
+            "- Se mostra una confezione di farmaco e l'utente dichiara di averlo assunto o che gli è stato prescritto, "
+            "genera la proposta per `therapy_logs` o `therapies`.\n"
+            "</allegato_multimodale>"
+        )
+    extraction_prompt = "\n\n".join(prompt_parts)
 
     try:
-        batch: LLMExtractionBatch = await llm.generate_structured(
-            [ChatMessage(role="user", content=extraction_prompt)],
-            system=get_extraction_system_prompt(),
-            response_schema=LLMExtractionBatch,
-        )
+        if has_media:
+            try:
+                batch: LLMExtractionBatch = await llm.generate_structured(
+                    [ChatMessage(role="user", content=extraction_prompt)],
+                    system=get_extraction_system_prompt(),
+                    response_schema=LLMExtractionBatch,
+                    media_bytes=media_bytes,
+                    media_mime_type=media_mime_type,
+                )
+            except TypeError:
+                batch = await llm.generate_structured(
+                    [ChatMessage(role="user", content=extraction_prompt)],
+                    system=get_extraction_system_prompt(),
+                    response_schema=LLMExtractionBatch,
+                )
+        else:
+            batch = await llm.generate_structured(
+                [ChatMessage(role="user", content=extraction_prompt)],
+                system=get_extraction_system_prompt(),
+                response_schema=LLMExtractionBatch,
+            )
     except Exception as exc:
         logger.warning("extractor chat fallito (degradazione graziosa) exc={}", type(exc).__name__)
         return []
 
     proposals: list[ProposedEntry] = []
+    # Se i dati provengono da una foto (es. glucometro o etichetta nutrizionale), le cifre sono nei pixel
+    # e non necessariamente scritte dall'utente nel testo del messaggio.
+    source_text_for_check = None if has_media else user_turns_text
     for idx, raw_item in enumerate(batch.items, start=1):
         entry = _build_proposed_entry(
             raw_item,
             index=idx,
             fallback_iso=iso_now,
-            source_user_text=user_turns_text,
+            source_user_text=source_text_for_check,
             active_therapies=active_therapies,
             masking_map=masking_map,
         )
@@ -600,7 +791,7 @@ async def extract_from_report(
         "In 'clinical_findings_text' trascrivi in modo schematico e de-identificato le principali conclusioni diagnostiche.",
     ]
     if scrubbed_text:
-        prompt_parts.append(f"<testo_referto>\n{scrubbed_text}\n</testo_referto>")
+        prompt_parts.append(f"<testo_referto>\n{sanitize_xml_tag_content(scrubbed_text)}\n</testo_referto>")
 
     try:
         batch: LLMReportExtractionBatch = await llm.generate_structured(
@@ -610,6 +801,10 @@ async def extract_from_report(
             media_bytes=actual_media_bytes,
             media_mime_type=actual_mime_type,
         )
+    except (LLMUnavailable, LLMError):
+        # Propaga errori transienti/provider così POST /api/reports restituisce 502/503
+        # invece di un falso 422 "documento non sembra un referto medico leggibile".
+        raise
     except Exception as exc:
         logger.warning("extractor report fallito exc={}", type(exc).__name__)
         return ReportExtractionResult(is_medical_report=False)

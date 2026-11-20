@@ -188,6 +188,7 @@ async def chat(
             tokens_used=pipeline_res.tokens_used,
             is_emergency=pipeline_res.is_emergency,
             guardrail_category=pipeline_res.guardrail_category,
+            suggested_action=pipeline_res.suggested_action,
         )
 
     logger.info(
@@ -215,6 +216,8 @@ async def chat(
         response_kwargs["assistant_message_id"] = asst_msg_id
     if attachment_out is not None:
         response_kwargs["attachment_info"] = attachment_out
+    if pipeline_res.suggested_action is not None:
+        response_kwargs["suggested_action"] = pipeline_res.suggested_action
 
     return ChatResponse(**response_kwargs)
 
@@ -356,6 +359,7 @@ async def chat_stream(
                             tokens_used=pipeline_res.tokens_used,
                             is_emergency=pipeline_res.is_emergency,
                             guardrail_category=pipeline_res.guardrail_category,
+                            suggested_action=pipeline_res.suggested_action,
                         )
 
                     done_payload = {
@@ -370,6 +374,8 @@ async def chat_stream(
                     }
                     if attachment_out is not None:
                         done_payload["attachment_info"] = attachment_out.model_dump()
+                    if pipeline_res.suggested_action is not None:
+                        done_payload["suggested_action"] = pipeline_res.suggested_action
 
                     yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n"
 
@@ -391,7 +397,7 @@ async def chat_stream(
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-store",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
@@ -430,6 +436,7 @@ async def delete_all_sessions(
         await asyncio.to_thread(
             lambda: user_db.table("chat_session").delete().eq("user_id", user.id).execute()
         )
+    logger.info("Cronologia chat eliminata completamente user={}", user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

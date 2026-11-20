@@ -111,6 +111,11 @@ class ChatRequest(BaseModel):
         return self
 
 
+class SuggestedActionOut(BaseModel):
+    type: Literal["export_pdf_summary"]
+    months: int = Field(default=3, ge=2, le=4)
+
+
 class ChatResponse(BaseModel):
     reply: str
     proposed_entries: list[ProposedEntry] = Field(default_factory=list)
@@ -126,6 +131,7 @@ class ChatResponse(BaseModel):
         "jailbreak_blocked",
         "prescription_redirect",
     ] | None = None
+    suggested_action: SuggestedActionOut | None = None
 
 
 class ChatSessionOut(BaseModel):
@@ -154,6 +160,7 @@ class ChatMessageOut(BaseModel):
         "jailbreak_blocked",
         "prescription_redirect",
     ] | None = None
+    suggested_action: SuggestedActionOut | None = None
 
 
 class ChatSessionDetailResponse(BaseModel):

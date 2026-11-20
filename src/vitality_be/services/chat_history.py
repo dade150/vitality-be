@@ -149,6 +149,7 @@ async def save_chat_turn(
     tokens_used: int | None = None,
     is_emergency: bool = False,
     guardrail_category: str | None = None,
+    suggested_action: dict[str, Any] | None = None,
 ) -> tuple[int | None, int | None]:
     """Salva la coppia di messaggi (user + assistant) in `public.chat_message`.
 
@@ -168,6 +169,8 @@ async def save_chat_turn(
         asst_rag_ctx["is_emergency"] = is_emergency
     if guardrail_category:
         asst_rag_ctx["guardrail_category"] = guardrail_category
+    if suggested_action:
+        asst_rag_ctx["suggested_action"] = suggested_action
 
     payload_user = {
         "session_id": session_id,
@@ -264,6 +267,7 @@ async def get_session_with_messages(
         props = []
         is_emer = False
         gr_cat = None
+        sugg_action = None
 
         if isinstance(rag_ctx, dict):
             is_emer = bool(rag_ctx.get("is_emergency"))
@@ -281,6 +285,11 @@ async def get_session_with_messages(
             raw_props = rag_ctx.get("proposed_entries")
             if isinstance(raw_props, list):
                 props = raw_props
+            raw_action = rag_ctx.get("suggested_action")
+            if isinstance(raw_action, dict) and raw_action.get("type") == "export_pdf_summary":
+                months_raw = raw_action.get("months")
+                months = months_raw if isinstance(months_raw, int) and months_raw in (2, 3, 4) else 3
+                sugg_action = {"type": "export_pdf_summary", "months": months}
 
         cleaned_messages.append(
             {
@@ -293,6 +302,7 @@ async def get_session_with_messages(
                 "proposed_entries": props,
                 "is_emergency": is_emer,
                 "guardrail_category": gr_cat,
+                "suggested_action": sugg_action,
             }
         )
 

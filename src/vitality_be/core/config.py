@@ -1,8 +1,15 @@
 from functools import lru_cache
+import re
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+_EU_LOCATION_RE = re.compile(r"^(?:eu|europe-[a-z0-9-]+)$")
+_EU_VERTEX_HOST_RE = re.compile(
+    r"^(?:aiplatform\.eu\.rep\.googleapis\.com|europe-[a-z0-9-]+-aiplatform\.googleapis\.com)$"
+)
 
 
 class Settings(BaseSettings):
@@ -62,8 +69,24 @@ class Settings(BaseSettings):
     def _validate(self) -> "Settings":
         errors: list[str] = []
 
-        if self.gcp_location.strip().lower() == "global":
-            errors.append("GCP_LOCATION=global non è ammesso (nessuna garanzia sul luogo di elaborazione): usa 'eu'.")
+        gcp_loc = self.gcp_location.strip().lower()
+        if not _EU_LOCATION_RE.match(gcp_loc):
+            errors.append(
+                f"GCP_LOCATION='{self.gcp_location}' non è una regione UE ammessa (usa 'eu' o 'europe-*')."
+            )
+
+        emb_loc = self.embedding_location.strip().lower()
+        if not _EU_LOCATION_RE.match(emb_loc):
+            errors.append(
+                f"EMBEDDING_LOCATION='{self.embedding_location}' non è una regione UE ammessa (usa 'eu' o 'europe-*')."
+            )
+
+        parsed_emb_ep = urlparse(self.embedding_api_endpoint.strip())
+        if parsed_emb_ep.scheme != "https" or not _EU_VERTEX_HOST_RE.match((parsed_emb_ep.hostname or "").lower()):
+            errors.append(
+                "EMBEDDING_API_ENDPOINT deve essere un endpoint HTTPS Vertex AI UE "
+                "(es. https://aiplatform.eu.rep.googleapis.com o https://europe-*-aiplatform.googleapis.com)."
+            )
 
         if self.llm_provider == "vertex":
             if not self.gcp_project:
