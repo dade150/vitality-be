@@ -992,6 +992,7 @@ async def fetch_patient_context(
             "therapy_type": str(t.get("therapy_type") or "ALTRO").strip().upper(),
             "drug_name": scrub_free_text(t.get("drug_name"), masking_map),
             "dosage": scrub_free_text(t.get("dosage"), masking_map),
+            "frequency": scrub_free_text(t.get("frequency"), masking_map) or "Giornaliera",
             "scheduled_time": str(t.get("scheduled_time") or "").strip()[:5] or None,
         }
         for t in therapies_rows

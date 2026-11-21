@@ -177,3 +177,39 @@ def test_api_export_summary_pdf_direct(sample_complete_data):
     assert "Report_Clinico_3M_" in response.headers["Content-Disposition"]
     assert response.headers["Cache-Control"] == "no-store, no-cache, must-revalidate"
     assert response.body.startswith(b"%PDF-")
+
+
+def test_pdf_summary_weekly_therapy_adherence_and_label():
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    # 1 terapia settimanale (ogni Domenica) presa 8 volte in 2 mesi (~8.6 settimane -> aderenza ~93%, non ~13%!)
+    weekly_data = {
+        "user": [{"name": "Giulia", "surname": "Bianchi", "birth": "1968-05-10"}],
+        "profile": [{"peso": 70, "altezza": 165, "sesso": "femmina"}],
+        "therapies": [
+            {
+                "id": 1,
+                "drug_name": "Semaglutide",
+                "dosage": "0.5 mg",
+                "frequency": "Settimanale (Domenica)",
+                "scheduled_time": "09:00:00",
+                "is_active": True,
+            }
+        ],
+        "therapy_logs": [
+            {"therapy_id": 1, "taken_at": (now - timedelta(days=7 * i)).isoformat(), "status": "taken"}
+            for i in range(8)
+        ],
+    }
+    db = MockUserDb(weekly_data)
+    pdf_bytes = _run_coro_sync(generate_patient_summary_pdf(user_db=db, months=2))
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    full_text = "\n".join(page.get_text("text") for page in doc)
+    doc.close()
+
+    assert "Semaglutide" in full_text
+    assert "Settimanale (Domenica)" in full_text
+    # L'aderenza deve riflettere ~8/8.6 (~90-100%), non 8/60 (~13%)
+    assert "Aderenza periodo: 9" in full_text or "Aderenza periodo: 100%" in full_text
+

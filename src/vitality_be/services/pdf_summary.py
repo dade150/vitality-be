@@ -219,12 +219,15 @@ class PdfReportBuilder:
             for t in therapies:
                 name = _safe_str(t.get("drug_name"))
                 dosage = _safe_str(t.get("dosage"))
+                freq = _safe_str(t.get("frequency"))
                 sched = _safe_str(t.get("scheduled_time"))[:5]
                 item_str = name
                 if dosage and dosage != "-":
                     item_str += f" ({dosage})"
                 if sched:
                     item_str += f" ore {sched}"
+                if freq and "giornalier" not in freq.lower():
+                    item_str += f" [{freq}]"
                 active_drugs.append(item_str)
 
             ther_text = "Terapia in atto: " + "; ".join(active_drugs)
@@ -903,12 +906,38 @@ def _fetch_all_summary_data_sync(user_db: Client, months: int) -> dict[str, Any]
         if len(curr_list) < 3:
             curr_list.append((val, dt))
 
-    # 4. Aderenza terapia nel periodo
+    # 4. Aderenza terapia nel periodo (rispetta frequenze giornaliere, settimanali e giorni specifici)
     adherence_pct = None
     if therapies_rows and logs_rows:
-        total_expected = len(therapies_rows) * (months * 30)
+        period_days = max(1, (now.date() - since_dt.date()).days)
+        total_expected = 0.0
+        for t in therapies_rows:
+            freq_low = _safe_str(t.get("frequency")).lower()
+            if not freq_low or "giornalier" in freq_low or "tutti i giorni" in freq_low or "ogni giorno" in freq_low:
+                days_per_week = 7
+            else:
+                matched_days = sum(
+                    1
+                    for pat in (
+                        r"\blun(?:ed[iì])?\b",
+                        r"\bmar(?:ted[iì])?\b",
+                        r"\bmer(?:coled[iì])?\b",
+                        r"\bgio(?:ved[iì])?\b",
+                        r"\bven(?:erd[iì])?\b",
+                        r"\bsab(?:ato)?\b",
+                        r"\bdom(?:enica)?\b",
+                    )
+                    if re.search(pat, freq_low)
+                )
+                if matched_days > 0:
+                    days_per_week = matched_days
+                elif "settiman" in freq_low:
+                    days_per_week = 1
+                else:
+                    days_per_week = 7
+            total_expected += (period_days / 7.0) * days_per_week
         taken_count = len(logs_rows)
-        adherence_pct = min(100, round((taken_count / max(1, total_expected)) * 100))
+        adherence_pct = min(100, round((taken_count / max(1.0, total_expected)) * 100))
 
     return {
         "patient_info": patient_info,

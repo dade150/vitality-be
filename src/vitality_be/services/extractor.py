@@ -637,7 +637,9 @@ async def extract_clinical_proposals(
     if active_therapies:
         t_lines = [
             f"- id={t.get('id')}: {t.get('drug_name')} ({t.get('therapy_type')}, "
-            f"dosaggio: {t.get('dosage') or 'n.d.'}, orario: {t.get('scheduled_time') or 'n.d.'})"
+            f"dosaggio: {t.get('dosage') or 'n.d.'}, "
+            f"frequenza: {t.get('frequency') or 'Giornaliera'}, "
+            f"orario: {t.get('scheduled_time') or 'n.d.'})"
             for t in active_therapies
         ]
         therapies_block = "\n".join(t_lines)
