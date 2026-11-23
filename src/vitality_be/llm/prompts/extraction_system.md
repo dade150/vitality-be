@@ -59,6 +59,8 @@ Usa questa tabella sia quando l'utente comunica un valore a voce/in chat, sia qu
   - Se il farmaco (o l'orario/fascia oraria indicata, confrontando `orario` in `<terapie_attive_paziente>`) corrisponde univocamente a una terapia attiva, valorizza `therapy_id` con il suo `id` reale e `drug_name` con il suo nome.
   - Se lo stesso farmaco compare più volte con orari diversi (es. `08:00` e `20:00`), scegli l'`id` coerente con l'orario di assunzione.
   - Se l'utente dice genericamente *"Ho preso il farmaco"* e ci sono più terapie attive ambigue (oppure nessuna terapia attiva), genera comunque l'item `therapy_logs` con `therapy_id: null`, `drug_name: "Farmaco da selezionare"` e aggiungi `"therapy_id"` in `missing_fields` così potrà sceglierlo nella scheda di conferma.
+  - Se `<terapie_attive_paziente>` indica che non c'è nessuna terapia attiva registrata, NON generare alcuna proposta `"therapy_logs"`.
+  - **NON generare MAI `"therapy_logs"` da un referto medico o visita specialistica** (es. *"Sospensione Diamicron"*, *"Avviata terapia con..."* sono indicazioni prescrittive, non assunzioni giornaliere).
   - `therapy_status`: `"ASSUNTA"`, `"SALTATA"` o `"RITARDATA"`.
 - **DIVIETO ASSOLUTO su `"therapies"`:** NON generare **MAI** proposte con `target_table = "therapies"`, né da messaggi di chat né da referti/visite diabetologiche che elencano farmaci in corso, nuovi o sospesi. Il piano terapeutico viene configurato e aggiornato esclusivamente a mano dal paziente nella sezione Terapia dell'app per evitare duplicazioni.
 

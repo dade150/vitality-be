@@ -522,7 +522,48 @@ def test_therapy_plan_proposals_are_blocked_in_chat_and_reports():
     )
     assert blocked is None
 
-    # La registrazione di un'assunzione giornaliera (`therapy_logs`) su terapia già configurata resta attiva
+    # Se il paziente ha 0 terapie attive configurate, NON deve spuntare alcuna card rossa `therapy_logs`
+    no_active = _build_proposed_entry(
+        RawExtractedItem(
+            target_table="therapy_logs",
+            drug_name="Diamicron",
+            therapy_status="SALTATA",
+        ),
+        index=2,
+        fallback_iso="2026-11-23T09:00:00+01:00",
+        source_user_text="Sospensione Diamicron",
+        active_therapies=(),
+        masking_map=None,
+    )
+    assert no_active is None
+
+    # Anche con terapie attive, un referto medico NON deve mai generare né `therapies` né `therapy_logs`
+    from vitality_be.schemas.extraction import LLMReportExtractionBatch
+    from vitality_be.services.extractor import extract_from_report
+
+    class _ReportLLM:
+        async def generate_structured(self, *_a, **_k):
+            return LLMReportExtractionBatch(
+                is_medical_report=True,
+                report_type="VISITA_DIABETOLOGICA",
+                clean_summary="Controllo diabetologico con glicemia 120 mg/dL.",
+                items=[
+                    RawExtractedItem(target_table="diabetes_data", metric_type="GLICEMIA", metric_value="120"),
+                    RawExtractedItem(target_table="therapies", drug_name="Gliflozina", dosage="10 mg", frequency="Giornaliera"),
+                    RawExtractedItem(target_table="therapy_logs", drug_name="Diamicron", therapy_status="SALTATA"),
+                ],
+            )
+
+    rep_res = run_coro(
+        extract_from_report(
+            _ReportLLM(),
+            report_text="Glicemia 120 mg/dL. Sospensione Diamicron. Avviata Gliflozina.",
+            active_therapies=[{"id": 7, "drug_name": "Diamicron", "therapy_type": "COMPRESSE_ORALI", "scheduled_time": "08:00"}],
+        )
+    )
+    assert [e.target_table for e in rep_res.proposed_entries] == ["diabetes_data"]
+
+    # La registrazione di un'assunzione giornaliera (`therapy_logs`) su terapia già configurata resta attiva in chat
     intake = _build_proposed_entry(
         RawExtractedItem(
             target_table="therapy_logs",

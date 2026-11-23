@@ -486,6 +486,10 @@ def _build_proposed_entry(
             )
 
         if table == "therapy_logs":
+            # Se il paziente non ha alcuna terapia attiva configurata, non mostrare mai
+            # schede rosse/incomplete che chiedono di configurare la terapia.
+            if not active_therapies:
+                return None
             raw_drug = _clean_rehydrated_text(item.drug_name, masking_map)
             resolved_id, resolved_drug = _resolve_active_therapy(
                 item_therapy_id=item.therapy_id,
@@ -673,6 +677,8 @@ async def extract_clinical_proposals(
     # e non necessariamente scritte dall'utente nel testo del messaggio.
     source_text_for_check = None if has_media else user_turns_text
     for idx, raw_item in enumerate(batch.items, start=1):
+        if attachment_kind == "medical_report" and raw_item.target_table in ("therapies", "therapy_logs"):
+            continue
         entry = _build_proposed_entry(
             raw_item,
             index=idx,
@@ -761,7 +767,8 @@ async def extract_from_report(
         "(GLICEMIA, HbA1c, Colesterolo Totale, HDL, LDL, Trigliceridi, eGFR, UACR, PRESSIONE) "
         "e genera una sintesi clinica oggettiva ('clean_summary') completamente priva di dati identificativi "
         "(non includere MAI nomi di pazienti, codici fiscali, ospedali, indirizzi o date di nascita). "
-        "NON generare MAI proposte con `target_table='therapies'` (le terapie farmacologiche vanno configurate manualmente dall'utente per evitare duplicazioni tra referti). "
+        "NON generare MAI proposte con `target_table='therapies'` o `target_table='therapy_logs'` "
+        "(le terapie farmacologiche e le loro modifiche/sospensioni vanno gestite manualmente dall'utente, mai dai referti). "
         "In 'clinical_findings_text' trascrivi in modo schematico e de-identificato le principali conclusioni diagnostiche.",
     ]
     if scrubbed_text:
@@ -791,6 +798,8 @@ async def extract_from_report(
 
     proposals: list[ProposedEntry] = []
     for idx, raw_item in enumerate(batch.items, start=1):
+        if raw_item.target_table in ("therapies", "therapy_logs"):
+            continue
         if not raw_item.timestamp_iso:
             raw_item.timestamp_iso = report_iso
         entry = _build_proposed_entry(
