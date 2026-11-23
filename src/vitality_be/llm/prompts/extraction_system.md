@@ -54,13 +54,13 @@ Usa questa tabella sia quando l'utente comunica un valore a voce/in chat, sia qu
 - `doctor_name`: nome del medico. **IMPORTANTE:** se nel testo il medico è indicato con segnaposto come `Dott. [NOME_MEDICO] [COGNOME_MEDICO]` o `Dott. [COGNOME_MEDICO]` (anche con suffisso `_2`), riporta esattamente quei segnaposto in `doctor_name`.
 - `has_explicit_time`: `true` se l'utente ha specificato l'orario della visita (es. *"alle 17:00"*), `false` se ha indicato solo il giorno (es. *"il 30 novembre"*). Se manca l'orario, aggiungi `"appointment_time"` in `missing_fields`. Se manca anche la data, lascia `timestamp_iso: null` e aggiungi `"appointment_at"` in `missing_fields`.
 
-### E. `target_table = "therapy_logs"` e `"therapies"`
-- Usa `"therapy_logs"` quando l'utente comunica di aver **assunto, saltato o ritardato** un farmaco — sia nominandolo (*"Stamattina alle 8 ho preso la metformina"*) sia in modo generico (*"Ho preso il farmaco"*, *"Ho preso la pastiglia di stamattina"*, *"Ho dimenticato la terapia"*):
+### E. `target_table = "therapy_logs"` (Assunzioni giornaliere — MAI `"therapies"`)
+- Usa `"therapy_logs"` SOLO quando l'utente comunica di aver **assunto, saltato o ritardato** un farmaco già presente nel proprio piano terapeutico — sia nominandolo (*"Stamattina alle 8 ho preso la metformina"*) sia in modo generico (*"Ho preso il farmaco"*, *"Ho preso la pastiglia di stamattina"*, *"Ho dimenticato la terapia"*):
   - Se il farmaco (o l'orario/fascia oraria indicata, confrontando `orario` in `<terapie_attive_paziente>`) corrisponde univocamente a una terapia attiva, valorizza `therapy_id` con il suo `id` reale e `drug_name` con il suo nome.
   - Se lo stesso farmaco compare più volte con orari diversi (es. `08:00` e `20:00`), scegli l'`id` coerente con l'orario di assunzione.
   - Se l'utente dice genericamente *"Ho preso il farmaco"* e ci sono più terapie attive ambigue (oppure nessuna terapia attiva), genera comunque l'item `therapy_logs` con `therapy_id: null`, `drug_name: "Farmaco da selezionare"` e aggiungi `"therapy_id"` in `missing_fields` così potrà sceglierlo nella scheda di conferma.
   - `therapy_status`: `"ASSUNTA"`, `"SALTATA"` o `"RITARDATA"`.
-- Usa `"therapies"` SOLO quando l'utente dichiara una terapia prescrittagli dal medico che vuole registrare nel piano terapeutico (`therapy_type`: `"COMPRESSE_ORALI"`, `"INSULINA_BASALE"`, `"INSULINA_RAPIDA"`, `"GLP1_INIETTIVO"`, `"ALTRO"`). Se manca il dosaggio (`dosage`) o la frequenza (`frequency`), non inventarli mai: lasciali `null` e segnalali in `missing_fields`.
+- **DIVIETO ASSOLUTO su `"therapies"`:** NON generare **MAI** proposte con `target_table = "therapies"`, né da messaggi di chat né da referti/visite diabetologiche che elencano farmaci in corso, nuovi o sospesi. Il piano terapeutico viene configurato e aggiornato esclusivamente a mano dal paziente nella sezione Terapia dell'app per evitare duplicazioni.
 
 ### F. `target_table = "profile"` (Peso e Altezza)
 - Usa `"profile"` quando l'utente comunica il proprio peso attuale in kg (`peso_kg`) e/o la propria altezza in cm (`altezza_cm`).

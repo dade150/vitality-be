@@ -499,3 +499,42 @@ def test_uniform_bracket_scrubbing_and_activity_steps_only_for_walking():
     assert swim is not None
     assert swim.data["steps"] is None
     assert swim.data["intensity"] == "INTENSA"
+
+
+def test_therapy_plan_proposals_are_blocked_in_chat_and_reports():
+    from vitality_be.schemas.extraction import RawExtractedItem
+    from vitality_be.services.extractor import _build_proposed_entry
+
+    # Una terapia estratta da chat o da referto diabetologico NON deve mai generare una card `therapies`
+    blocked = _build_proposed_entry(
+        RawExtractedItem(
+            target_table="therapies",
+            therapy_type="COMPRESSE_ORALI",
+            drug_name="Janumet",
+            dosage="50/1000 mg",
+            frequency="2 volte al giorno",
+        ),
+        index=0,
+        fallback_iso="2026-11-23T09:00:00+01:00",
+        source_user_text="La diabetologa ha confermato Janumet 50/1000 mg 2 volte al giorno",
+        active_therapies=(),
+        masking_map=None,
+    )
+    assert blocked is None
+
+    # La registrazione di un'assunzione giornaliera (`therapy_logs`) su terapia già configurata resta attiva
+    intake = _build_proposed_entry(
+        RawExtractedItem(
+            target_table="therapy_logs",
+            drug_name="Metformina",
+            therapy_status="ASSUNTA",
+        ),
+        index=1,
+        fallback_iso="2026-11-23T09:00:00+01:00",
+        source_user_text="Stamattina ho preso la metformina",
+        active_therapies=[{"id": 7, "drug_name": "Metformina", "therapy_type": "COMPRESSE_ORALI", "scheduled_time": "08:00"}],
+        masking_map=None,
+    )
+    assert intake is not None
+    assert intake.target_table == "therapy_logs"
+    assert intake.data["therapy_id"] == 7

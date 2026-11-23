@@ -35,7 +35,6 @@ from vitality_be.schemas.extraction import (
     RawExtractedItem,
     ReportExtractionResult,
     TherapyLogProposal,
-    TherapyPlanProposal,
     canonicalize_metric_type,
 )
 from vitality_be.services.multimodal import inspect_pdf_in_ram
@@ -537,37 +536,9 @@ def _build_proposed_entry(
             )
 
         if table == "therapies":
-            drug = _clean_rehydrated_text(item.drug_name, masking_map)
-            if not drug:
-                return None
-            dosage = _clean_rehydrated_text(item.dosage, masking_map)
-            freq = _clean_rehydrated_text(item.frequency, masking_map)
-            if not dosage and "dosage" not in missing:
-                missing.append("dosage")
-            if not freq and "frequency" not in missing:
-                missing.append("frequency")
-
-            payload = TherapyPlanProposal(
-                therapy_type=item.therapy_type or "ALTRO",
-                drug_name=drug,
-                dosage=dosage,
-                frequency=freq,
-                scheduled_time=item.scheduled_time,
-                notes=_clean_rehydrated_text(item.notes, masking_map),
-            )
-            title = (
-                _clean_rehydrated_text(item.summary_title, masking_map)
-                or f"Piano terapeutico: {drug}"
-            )
-            return ProposedEntry(
-                proposal_id=proposal_id,
-                target_table="therapies",
-                summary_title=title,
-                is_complete=len(missing) == 0,
-                missing_fields=missing,
-                assistant_note=_clean_rehydrated_text(item.assistant_note, masking_map),
-                data=payload.model_dump(),
-            )
+            # Il piano terapeutico si configura esclusivamente a mano (Impostazioni > Terapia)
+            # per evitare duplicazioni quando il paziente carica più referti clinici nel tempo.
+            return None
 
         if table == "profile":
             if (
@@ -665,8 +636,8 @@ async def extract_clinical_proposals(
             "- Se mostra il display di un glucometro o di un misuratore di pressione con cifre chiaramente leggibili, "
             "genera una proposta per `target_table=\"diabetes_data\"` (`GLICEMIA` o `PRESSIONE`) con il valore esatto letto sul display. "
             "Non inventare mai cifre se il display è sfocato o illeggibile.\n"
-            "- Se mostra una confezione di farmaco e l'utente dichiara di averlo assunto o che gli è stato prescritto, "
-            "genera la proposta per `therapy_logs` o `therapies`.\n"
+            "- Se mostra una confezione di farmaco e l'utente dichiara esplicitamente di averlo assunto o saltato oggi, "
+            "genera SOLO una proposta per `therapy_logs` (NON generare MAI proposte per `therapies`: il piano terapeutico si configura solo manualmente).\n"
             "</allegato_multimodale>"
         )
     extraction_prompt = "\n\n".join(prompt_parts)
@@ -790,6 +761,7 @@ async def extract_from_report(
         "(GLICEMIA, HbA1c, Colesterolo Totale, HDL, LDL, Trigliceridi, eGFR, UACR, PRESSIONE) "
         "e genera una sintesi clinica oggettiva ('clean_summary') completamente priva di dati identificativi "
         "(non includere MAI nomi di pazienti, codici fiscali, ospedali, indirizzi o date di nascita). "
+        "NON generare MAI proposte con `target_table='therapies'` (le terapie farmacologiche vanno configurate manualmente dall'utente per evitare duplicazioni tra referti). "
         "In 'clinical_findings_text' trascrivi in modo schematico e de-identificato le principali conclusioni diagnostiche.",
     ]
     if scrubbed_text:
