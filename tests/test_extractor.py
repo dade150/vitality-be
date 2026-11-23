@@ -30,7 +30,7 @@ class FakeStructuredLLM:
     def __init__(
         self,
         *,
-        chat_reply: str = "Perfetto {{NOME}}, puoi confermare i dati nella scheda qui sotto.",
+        chat_reply: str = "Perfetto [NOME_PAZIENTE], puoi confermare i dati nella scheda qui sotto.",
         structured_batch: LLMExtractionBatch | LLMReportExtractionBatch | None = None,
         structured_exc: Exception | None = None,
     ):
@@ -128,9 +128,18 @@ def test_mask_sensitive_user_input_and_dynamic_doctor_tokens():
     assert "mario@test.it" not in scrubbed
     assert "Dott. Roberto Galli" not in scrubbed
 
-    assert "{{NOME}}" in scrubbed
-    assert "{{MEDICO}}" in scrubbed
+    assert "[NOME_PAZIENTE]" in scrubbed
+    assert "[COGNOME_PAZIENTE]" in scrubbed
+    assert "[NOME_MEDICO]" in scrubbed
+    assert "[COGNOME_MEDICO]" in scrubbed
+    assert "[INDIRIZZO_RIMOSSO]" in scrubbed
+    assert "[CF_RIMOSSO]" in scrubbed
+    assert "[TESSERA_SANITARIA_RIMOSSA]" in scrubbed
+    assert "[IBAN_RIMOSSO]" in scrubbed
+    assert "[TELEFONO_RIMOSSO]" in scrubbed
+    assert "[EMAIL_RIMOSSA]" in scrubbed
     assert updated_map.primary_doctor == "Dott. Roberto Galli"
+    assert updated_map.doctor_tokens == {"[NOME_MEDICO]": "Roberto", "[COGNOME_MEDICO]": "Galli"}
 
 
 def _run_coro_sync(coro):
@@ -321,14 +330,14 @@ def test_chat_reply_with_proposals_rehydrates_doctor_and_degrades_gracefully(mon
             RawExtractedItem(
                 target_table="appointments",
                 appointment_title="Visita oculistica",
-                doctor_name="{{MEDICO}}",
+                doctor_name="Dott. [NOME_MEDICO] [COGNOME_MEDICO]",
                 timestamp_iso="2026-11-30T09:00:00+01:00",
                 has_explicit_time=False,
             )
         ]
     )
     llm = FakeStructuredLLM(
-        chat_reply="Ho preparato la scheda per la visita con {{MEDICO}}. A che ora hai l'appuntamento?",
+        chat_reply="Ho preparato la scheda per la visita con Dott. [NOME_MEDICO] [COGNOME_MEDICO]. A che ora hai l'appuntamento?",
         structured_batch=batch,
     )
 

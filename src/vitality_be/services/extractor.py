@@ -306,8 +306,8 @@ def _clean_rehydrated_text(
     *,
     allow_doctor_name: bool = False,
 ) -> str | None:
-    """Re-idrata i token reversibili (`{{NOME}}`, `{{MEDICO}}`) ma rimuove sempre eventuali PII
-    sensibili (CF, email, telefono, IBAN, tessera sanitaria, indirizzi)."""
+    """Re-idrata i token reversibili (`[NOME_PAZIENTE]`, `[COGNOME_PAZIENTE]`, `[NOME_MEDICO]`, `[COGNOME_MEDICO]`)
+    ma rimuove sempre eventuali PII sensibili (CF, email, telefono, IBAN, tessera sanitaria, indirizzi)."""
     if text is None:
         return None
     raw = str(text).strip()
@@ -425,7 +425,7 @@ def _build_proposed_entry(
                 activity_type=act_type_raw,
                 duration_minutes=dur,
                 intensity=item.intensity or "MODERATA",
-                steps=item.steps,
+                steps=item.steps if str(act_type_raw).strip().upper() == "CAMMINATA" else None,
                 notes=_clean_rehydrated_text(item.notes, masking_map),
                 activity_at=ts_iso,
             )

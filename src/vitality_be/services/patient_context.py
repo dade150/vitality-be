@@ -3,22 +3,22 @@
 Responsabilità principali:
 1. Recuperare in parallelo e in sicurezza (tramite il client RLS `user_db`) i dati
    clinici e di autogestione dell'utente autenticato da Supabase:
-   - `user` (solo per età in anni e per il token reversibile `{{NOME}}` tenuto in RAM)
+   - `user` (solo per età in anni e per i token reversibili `[NOME_PAZIENTE]` / `[COGNOME_PAZIENTE]` tenuti in RAM)
    - `profile` (sesso biologico, peso, altezza, IMC calcolato, note anamnestiche)
    - `diabetes_data` (diario glicemico SMBG con statistiche sintetiche, pressione arteriosa,
      esami ematochimici più recenti: HbA1c, eGFR, UACR, profilo lipidico)
    - `therapies` + `therapy_logs` (terapie attive e ultime assunzioni registrate)
    - `meals` (ultimi pasti registrati con carboidrati e calorie)
    - `physical_activities` (ultime sessioni di movimento e minuti negli ultimi 7 giorni)
-   - `appointments` (prossime/ultime visite mediche con token reversibile `{{MEDICO}}`)
+   - `appointments` (prossime/ultime visite mediche con token reversibili `[NOME_MEDICO]` / `[COGNOME_MEDICO]`)
    - `patient_reports` (sintesi degli ultimi referti clinici caricati)
 2. Garantire **Privacy & Data Minimization by Design (GDPR Art. 5 e 25)**:
    - Nessun identificativo diretto (nome, cognome, email, telefono, codice fiscale, UUID,
      data di nascita completa) viene MAI inserito in `<contesto_paziente>`.
    - Eventuali PII presenti in campi a testo libero (note, descrizioni, messaggi utente)
-     vengono rimosse o sostituite con segnaposto prima dell'invio a Vertex AI.
+     vengono rimosse o sostituite con segnaposto uniformi in MAIUSCOLO tra parentesi quadre prima dell'invio a Vertex AI.
 3. Gestire la **Re-idratazione Post-LLM**:
-   - Sostituire i segnaposto `{{NOME}}` e `{{MEDICO}}` nella risposta generata dal modello
+   - Sostituire i segnaposto `[NOME_PAZIENTE]`, `[COGNOME_PAZIENTE]`, `[NOME_MEDICO]` e `[COGNOME_MEDICO]` nella risposta generata dal modello
      con i valori reali conservati esclusivamente in RAM per la singola richiesta.
 4. Garantire **Degradazione Graziosa**:
    - Il fallimento o l'assenza di dati in una singola tabella non interrompe mai il recupero
@@ -38,9 +38,17 @@ from supabase import Client
 
 from vitality_be.services.retriever import RetrievedChunk, format_rag_context
 
-TOKEN_PATIENT_NAME = "{{NOME}}"
-TOKEN_DOCTOR_NAME = "{{MEDICO}}"
+TOKEN_PATIENT_NAME = "[NOME_PAZIENTE]"
+TOKEN_PATIENT_SURNAME = "[COGNOME_PAZIENTE]"
+TOKEN_DOCTOR_FIRST_NAME = "[NOME_MEDICO]"
+TOKEN_DOCTOR_SURNAME = "[COGNOME_MEDICO]"
+# Alias compatibile con moduli che si riferiscono al segnaposto del medico
+TOKEN_DOCTOR_NAME = TOKEN_DOCTOR_SURNAME
 RPC_PATIENT_CONTEXT_BUNDLE = "get_patient_context_bundle"
+
+_DOCTOR_TITLE_SPLIT_RE = re.compile(
+    r"^(?:(?P<title>(?i:dott\.?(?:ssa|ore|oressa)?|dr\.?(?:ssa)?|prof\.?(?:ssa|essore|essoressa)?))\s+)?(?P<rest>.+)$"
+)
 
 # Regex difensive per rimuovere PII accidentali nei testi liberi (input utente e referti)
 _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
@@ -235,9 +243,76 @@ def _extract_first_float(raw_value: Any) -> float | None:
         return None
 
 
+def _tokenize_doctor_string(raw_doc: str, *, suffix: str = "") -> tuple[str, dict[str, str]]:
+    """Converte un nominativo medico in segnaposto uniformi `[NOME_MEDICO]` / `[COGNOME_MEDICO]`.
+
+    Esempi:
+    - 'Dott. Roberto Galli' -> ('Dott. [NOME_MEDICO] [COGNOME_MEDICO]', {'[NOME_MEDICO]': 'Roberto', '[COGNOME_MEDICO]': 'Galli'})
+    - 'Dott.ssa Verdi'      -> ('Dott.ssa [COGNOME_MEDICO]', {'[COGNOME_MEDICO]': 'Verdi'})
+    - 'Marco Rossi'         -> ('[NOME_MEDICO] [COGNOME_MEDICO]', {'[NOME_MEDICO]': 'Marco', '[COGNOME_MEDICO]': 'Rossi'})
+    """
+    cleaned = " ".join(str(raw_doc).strip().split())
+    if not cleaned:
+        return "", {}
+
+    m = _DOCTOR_TITLE_SPLIT_RE.match(cleaned)
+    title = (m.group("title") or "").strip() if m else ""
+    rest = (m.group("rest") or "").strip() if m else cleaned
+    parts = [p for p in rest.split() if p]
+    if not parts:
+        return cleaned, {}
+
+    fn_tok = f"[NOME_MEDICO{suffix}]"
+    ln_tok = f"[COGNOME_MEDICO{suffix}]"
+    if len(parts) >= 2:
+        first_name = parts[0]
+        last_name = " ".join(parts[1:])
+        masked = f"{title} {fn_tok} {ln_tok}".strip()
+        return masked, {fn_tok: first_name, ln_tok: last_name}
+
+    last_name = parts[0]
+    masked = f"{title} {ln_tok}".strip()
+    return masked, {ln_tok: last_name}
+
+
+def _next_doctor_suffix(doctor_tokens: dict[str, str]) -> str:
+    """Restituisce '' per il primo medico, '_2', '_3', ... per eventuali medici aggiuntivi."""
+    if "[NOME_MEDICO]" not in doctor_tokens and "[COGNOME_MEDICO]" not in doctor_tokens:
+        return ""
+    idx = 2
+    while f"[NOME_MEDICO_{idx}]" in doctor_tokens or f"[COGNOME_MEDICO_{idx}]" in doctor_tokens:
+        idx += 1
+    return f"_{idx}"
+
+
+def _register_doctor_in_map(
+    raw_doc: str,
+    *,
+    primary_doctor: str | None,
+    doctor_tokens: dict[str, str],
+    doc_display_by_norm: dict[str, str],
+) -> tuple[str, str | None]:
+    """Registra un medico nella mappa di tokenizzazione e restituisce la forma mascherata."""
+    cleaned = " ".join(str(raw_doc).strip().split())
+    if not cleaned:
+        return "", primary_doctor
+    norm = cleaned.lower()
+    if norm in doc_display_by_norm:
+        return doc_display_by_norm[norm], primary_doctor
+
+    suffix = _next_doctor_suffix(doctor_tokens)
+    masked, new_tokens = _tokenize_doctor_string(cleaned, suffix=suffix)
+    if primary_doctor is None:
+        primary_doctor = cleaned
+    doctor_tokens.update(new_tokens)
+    doc_display_by_norm[norm] = masked
+    return masked, primary_doctor
+
+
 def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = None) -> str:
     """Rimuove email, numeri di telefono, codici fiscali, IBAN, tessere sanitarie, indirizzi,
-    strutture sanitarie/ospedali e il nome/cognome/medico reale dal testo libero prima di qualsiasi invio a Vertex AI."""
+    strutture sanitarie/ospedali, date di nascita, familiari e i nomi/cognomi reali di paziente e medici
+    usando segnaposto uniformi in MAIUSCOLO tra parentesi quadre prima di qualsiasi invio a Vertex AI."""
     if not text:
         return ""
     cleaned = str(text)
@@ -252,39 +327,34 @@ def scrub_free_text(text: str | None, masking_map: PatientMaskingMap | None = No
     cleaned = _RELATIVE_MENTION_RE.sub(r"\g<rel> [FAMILIARE_RIMOSSO]", cleaned)
 
     if masking_map is not None:
-        # Se il cognome compare nel testo, lo oscuriamo prima del nome
+        # 1. Medico primario completo prima del nome paziente (evita collisioni in caso di omonimia)
+        if masking_map.primary_doctor and len(masking_map.primary_doctor.strip()) >= 3:
+            masked_primary, _ = _tokenize_doctor_string(masking_map.primary_doctor)
+            doc_escaped = re.escape(masking_map.primary_doctor.strip())
+            cleaned = re.sub(rf"\b{doc_escaped}\b", masked_primary, cleaned, flags=re.IGNORECASE)
+
+        # 2. Cognome e nome del paziente -> [COGNOME_PAZIENTE] e [NOME_PAZIENTE]
         if masking_map.last_name and len(masking_map.last_name.strip()) >= 2:
             ln_escaped = re.escape(masking_map.last_name.strip())
-            if masking_map.first_name and len(masking_map.first_name.strip()) >= 2:
-                fn_escaped = re.escape(masking_map.first_name.strip())
-                full_pattern = re.compile(rf"\b{fn_escaped}\s+{ln_escaped}\b", re.IGNORECASE)
-                cleaned = full_pattern.sub(TOKEN_PATIENT_NAME, cleaned)
-            ln_pattern = re.compile(rf"\b{ln_escaped}\b", re.IGNORECASE)
-            cleaned = ln_pattern.sub("[COGNOME_RIMOSSO]", cleaned)
+            cleaned = re.sub(rf"\b{ln_escaped}\b", TOKEN_PATIENT_SURNAME, cleaned, flags=re.IGNORECASE)
 
         if masking_map.first_name and len(masking_map.first_name.strip()) >= 2:
             fn_escaped = re.escape(masking_map.first_name.strip())
-            fn_pattern = re.compile(rf"\b{fn_escaped}\b", re.IGNORECASE)
-            cleaned = fn_pattern.sub(TOKEN_PATIENT_NAME, cleaned)
+            cleaned = re.sub(rf"\b{fn_escaped}\b", TOKEN_PATIENT_NAME, cleaned, flags=re.IGNORECASE)
 
-        # Sostituisce tutti i medici già mappati in doctor_tokens
+        # 3. Tutti i singoli token medico già mappati in doctor_tokens (ordinati per lunghezza decrescente)
         if masking_map.doctor_tokens:
-            for token, doc_name in sorted(
+            for token, doc_val in sorted(
                 masking_map.doctor_tokens.items(),
                 key=lambda kv: len(kv[1] or ""),
                 reverse=True,
             ):
-                if doc_name and len(doc_name.strip()) >= 3:
-                    doc_escaped = re.escape(doc_name.strip())
-                    cleaned = re.sub(doc_escaped, token, cleaned, flags=re.IGNORECASE)
+                if doc_val and len(doc_val.strip()) >= 2:
+                    val_escaped = re.escape(doc_val.strip())
+                    cleaned = re.sub(rf"\b{val_escaped}\b", token, cleaned, flags=re.IGNORECASE)
 
-        if masking_map.primary_doctor and len(masking_map.primary_doctor.strip()) >= 3:
-            doc_escaped = re.escape(masking_map.primary_doctor.strip())
-            doc_pattern = re.compile(rf"\b{doc_escaped}\b", re.IGNORECASE)
-            cleaned = doc_pattern.sub(TOKEN_DOCTOR_NAME, cleaned)
-
-    # Qualsiasi altro nome di medico residuo ("Dott. Cognome") non ancora tokenizzato viene oscurato
-    cleaned = _DOCTOR_MENTION_RE.sub(TOKEN_DOCTOR_NAME, cleaned)
+    # 4. Qualsiasi altro nome di medico residuo ("Dott. Nome Cognome" / "Dott. Cognome") viene mascherato
+    cleaned = _DOCTOR_MENTION_RE.sub(lambda m: _tokenize_doctor_string(m.group(0))[0], cleaned)
 
     return cleaned.strip()
 
@@ -337,33 +407,31 @@ def mask_user_text_with_dynamic_tokens(
     masking_map: PatientMaskingMap | None = None,
 ) -> tuple[str, PatientMaskingMap]:
     """Maschera i dati sensibili nel testo dell'utente (o di un referto) e registra dinamicamente
-    eventuali nuovi nomi di medici menzionati (es. 'Dott. Marco Verdi') in `PatientMaskingMap`,
-    così non lasciano mai il server verso Vertex AI ma vengono re-idratati per il Front-End."""
+    eventuali nuovi nomi di medici menzionati (es. 'Dott. Marco Verdi' -> 'Dott. [NOME_MEDICO] [COGNOME_MEDICO]')
+    in `PatientMaskingMap`, così non lasciano mai il server verso Vertex AI ma vengono re-idratati per il Front-End."""
     current_map = masking_map or PatientMaskingMap()
     if not text:
         return "", current_map
 
     doctor_tokens = dict(current_map.doctor_tokens)
     primary_doctor = current_map.primary_doctor
-    if primary_doctor and TOKEN_DOCTOR_NAME not in doctor_tokens:
-        doctor_tokens[TOKEN_DOCTOR_NAME] = primary_doctor
+    doc_display_by_norm: dict[str, str] = {}
 
-    existing_by_norm = {v.strip().lower(): k for k, v in doctor_tokens.items() if v}
+    if primary_doctor:
+        masked_primary, primary_tokens = _tokenize_doctor_string(primary_doctor)
+        for k, v in primary_tokens.items():
+            doctor_tokens.setdefault(k, v)
+        doc_display_by_norm[primary_doctor.strip().lower()] = masked_primary
 
     def _replace_doc(match: re.Match[str]) -> str:
         nonlocal primary_doctor
-        raw_doc = match.group(0).strip()
-        norm_doc = raw_doc.lower()
-        if norm_doc in existing_by_norm:
-            return existing_by_norm[norm_doc]
-        if primary_doctor is None:
-            primary_doctor = raw_doc
-            token = TOKEN_DOCTOR_NAME
-        else:
-            token = f"{{{{MEDICO_{len(existing_by_norm) + 1}}}}}"
-        existing_by_norm[norm_doc] = token
-        doctor_tokens[token] = raw_doc
-        return token
+        masked, primary_doctor = _register_doctor_in_map(
+            match.group(0),
+            primary_doctor=primary_doctor,
+            doctor_tokens=doctor_tokens,
+            doc_display_by_norm=doc_display_by_norm,
+        )
+        return masked
 
     with_doc_tokens = _DOCTOR_MENTION_RE.sub(_replace_doc, str(text))
     updated_map = PatientMaskingMap(
@@ -376,40 +444,71 @@ def mask_user_text_with_dynamic_tokens(
 
 
 def rehydrate_assistant_reply(reply_text: str, masking_map: PatientMaskingMap | None) -> str:
-    """Sostituisce i token `{{NOME}}` e `{{MEDICO}}` nella risposta del modello con i valori reali."""
+    """Sostituisce i segnaposto `[NOME_PAZIENTE]`, `[COGNOME_PAZIENTE]`, `[NOME_MEDICO]`, `[COGNOME_MEDICO]`
+    nella risposta del modello con i valori reali mantenuti in RAM."""
     if not reply_text:
         return reply_text
 
     result = reply_text
     first_name = (masking_map.first_name or "").strip() if masking_map else ""
+    last_name = (masking_map.last_name or "").strip() if masking_map else ""
     primary_doctor = (masking_map.primary_doctor or "").strip() if masking_map else ""
 
-    # 1. Sostituzione dei token specifici dei medici ({{MEDICO_1}}, {{MEDICO_2}}, ...)
+    # 1. Sostituzione dei token specifici dei medici ([NOME_MEDICO], [COGNOME_MEDICO], _2, ...)
     if masking_map and masking_map.doctor_tokens:
-        for token, doc_name in masking_map.doctor_tokens.items():
-            if doc_name:
-                result = re.sub(re.escape(token), doc_name, result, flags=re.IGNORECASE)
+        # Se per uno stesso medico abbiamo solo il cognome ma l'LLM scrive anche [NOME_MEDICO], rimuoviamo il token nome vuoto
+        for tok_key in list(masking_map.doctor_tokens.keys()):
+            m_ln = re.fullmatch(r"\[COGNOME_MEDICO(_\d+)?\]", tok_key, flags=re.IGNORECASE)
+            if m_ln:
+                sfx = m_ln.group(1) or ""
+                fn_key = f"[NOME_MEDICO{sfx}]"
+                if fn_key not in masking_map.doctor_tokens:
+                    result = re.sub(
+                        rf"\[\s*NOME_MEDICO{re.escape(sfx)}\s*\]\s*",
+                        "",
+                        result,
+                        flags=re.IGNORECASE,
+                    )
 
-    # 2. Sostituzione o fallback del token {{MEDICO}}
-    if re.search(r"\{\{\s*MEDICO(?:_\d+)?\s*\}\}", result, flags=re.IGNORECASE):
+        for token, doc_val in sorted(
+            masking_map.doctor_tokens.items(),
+            key=lambda kv: len(kv[0]),
+            reverse=True,
+        ):
+            if doc_val:
+                result = re.sub(re.escape(token), doc_val, result, flags=re.IGNORECASE)
+
+    # 2. Fallback per eventuali segnaposto medico rimasti non mappati (con o senza titolo Dott./Dr./Prof.)
+    _unmapped_doc_re = re.compile(
+        r"(?:\b(?:dott\.?(?:ssa|ore|oressa)?|dr\.?(?:ssa)?|prof\.?(?:ssa|essore|essoressa)?)\s+)?"
+        r"(?:\[\s*NOME_MEDICO(?:_\d+)?\s*\](?:\s+\[\s*COGNOME_MEDICO(?:_\d+)?\s*\])?"
+        r"|\[\s*COGNOME_MEDICO(?:_\d+)?\s*\]"
+        r"|\[\s*MEDICO(?:_\d+)?\s*\])",
+        flags=re.IGNORECASE,
+    )
+    if _unmapped_doc_re.search(result):
         replacement_doc = primary_doctor if primary_doctor else "il tuo medico di riferimento"
-        result = re.sub(
-            r"\{\{\s*MEDICO(?:_\d+)?\s*\}\}",
-            replacement_doc,
-            result,
-            flags=re.IGNORECASE,
-        )
+        result = _unmapped_doc_re.sub(replacement_doc, result)
 
-    # 3. Sostituzione o rimozione elegante del token {{NOME}}
-    if re.search(r"\{\{\s*NOME\s*\}\}", result, flags=re.IGNORECASE):
-        if first_name:
-            result = re.sub(r"\{\{\s*NOME\s*\}\}", first_name, result, flags=re.IGNORECASE)
+    # 3. Sostituzione o rimozione elegante del token [COGNOME_PAZIENTE]
+    _surname_re = re.compile(r"\[\s*COGNOME_PAZIENTE\s*\]", flags=re.IGNORECASE)
+    if _surname_re.search(result):
+        if last_name:
+            result = _surname_re.sub(last_name, result)
         else:
-            # Rimuove eventuali virgole/spazi superflui attorno al placeholder (es. "Ciao {{NOME}}, " -> "Ciao, ")
-            result = re.sub(r",\s*\{\{\s*NOME\s*\}\}(?=[!?.:,;])", "", result, flags=re.IGNORECASE)
-            result = re.sub(r"\s+\{\{\s*NOME\s*\}\}(?=[!?.:,;])", "", result, flags=re.IGNORECASE)
-            result = re.sub(r"\{\{\s*NOME\s*\}\}\s*,\s*", "", result, flags=re.IGNORECASE)
-            result = re.sub(r"\{\{\s*NOME\s*\}\}\s*", "", result, flags=re.IGNORECASE)
+            result = re.sub(r"\s*\[\s*COGNOME_PAZIENTE\s*\]", "", result, flags=re.IGNORECASE)
+
+    # 4. Sostituzione o rimozione elegante del token [NOME_PAZIENTE]
+    _name_re = re.compile(r"\[\s*NOME_PAZIENTE\s*\]", flags=re.IGNORECASE)
+    if _name_re.search(result):
+        if first_name:
+            result = _name_re.sub(first_name, result)
+        else:
+            # Rimuove eventuali virgole/spazi superflui attorno al placeholder (es. "Ciao, [NOME_PAZIENTE]!" -> "Ciao!")
+            result = re.sub(r",\s*\[\s*NOME_PAZIENTE\s*\](?=[!?.:,;])", "", result, flags=re.IGNORECASE)
+            result = re.sub(r"\s+\[\s*NOME_PAZIENTE\s*\](?=[!?.:,;])", "", result, flags=re.IGNORECASE)
+            result = re.sub(r"\[\s*NOME_PAZIENTE\s*\]\s*,\s*", "", result, flags=re.IGNORECASE)
+            result = re.sub(r"\[\s*NOME_PAZIENTE\s*\]\s*", "", result, flags=re.IGNORECASE)
 
     return result
 
@@ -813,7 +912,7 @@ def _format_activities_section(
 
         ts_str = _format_timestamp(act_dt, now=now)
         extras = [f"{dur_int} min", f"intensità {intensity}"]
-        if steps is not None:
+        if steps is not None and act_type == "CAMMINATA":
             extras.append(f"{steps} passi")
         if notes:
             extras.append(f"note: {notes[:100]}")
@@ -847,16 +946,13 @@ def _format_appointments_and_reports_section(
         raw_doc = str(ap.get("doctor_name") or "").strip()
         doc_token_str = ""
         if raw_doc:
-            norm_doc = raw_doc.lower()
-            if norm_doc not in doc_name_to_token:
-                if primary_doctor is None:
-                    primary_doctor = raw_doc
-                    token = TOKEN_DOCTOR_NAME
-                else:
-                    token = f"{{{{MEDICO_{len(doc_name_to_token) + 1}}}}}"
-                doc_name_to_token[norm_doc] = token
-                doctor_tokens[token] = raw_doc
-            doc_token_str = f" con {doc_name_to_token[norm_doc]}"
+            masked_doc, primary_doctor = _register_doctor_in_map(
+                raw_doc,
+                primary_doctor=primary_doctor,
+                doctor_tokens=doctor_tokens,
+                doc_display_by_norm=doc_name_to_token,
+            )
+            doc_token_str = f" con {masked_doc}"
 
         ts_str = _format_timestamp(ap.get("appointment_at"), now=now)
         notes = scrub_free_text(ap.get("notes"), masking_map)
@@ -953,7 +1049,7 @@ async def fetch_patient_context(
 
     masking_map = PatientMaskingMap(first_name=first_name, last_name=last_name)
 
-    # Costruiamo prima la sezione appuntamenti/referti così popola eventuali token {{MEDICO}} in masking_map
+    # Costruiamo prima la sezione appuntamenti/referti così popola eventuali token [NOME_MEDICO]/[COGNOME_MEDICO] in masking_map
     appt_section, masking_map = _format_appointments_and_reports_section(
         appointments_rows,
         reports_rows,

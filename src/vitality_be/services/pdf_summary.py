@@ -651,12 +651,18 @@ class PdfReportBuilder:
         page = self.current_page
 
         total_mins = sum(int(a.get("duration_minutes") or 0) for a in activities)
-        total_steps = sum(int(a.get("steps") or 0) for a in activities)
+        total_steps = sum(
+            int(a.get("steps") or 0)
+            for a in activities
+            if _safe_str(a.get("activity_type")).upper() == "CAMMINATA"
+        )
         weeks = max(1.0, (self.period_end - self.period_start).days / 7.0)
         avg_mins_week = round(total_mins / weeks)
 
         page.insert_text(fitz.Point(MARGIN_LEFT, self.y + 12), "ATTIVITÀ REGISTRATA", fontsize=11.5, fontname="hebo", color=COLOR_TEXT_MAIN)
-        sub_str = f"Totale minuti: {total_mins} min (Media: {avg_mins_week} min/settimana)  ·  Passi registrati: {total_steps:,}".replace(",", ".")
+        sub_str = f"Totale minuti: {total_mins} min (Media: {avg_mins_week} min/settimana)"
+        if total_steps > 0:
+            sub_str += f"  ·  Passi registrati (camminata): {total_steps:,}".replace(",", ".")
         page.insert_text(fitz.Point(MARGIN_LEFT, self.y + 24), sub_str, fontsize=8, fontname="helv", color=COLOR_TEXT_MUTED)
         self.y += 32.0
 
@@ -671,10 +677,16 @@ class PdfReportBuilder:
             d_str = _format_date_italian(act.get("activity_at"))
             a_type = _safe_str(act.get("activity_type") or "Attività").capitalize()
             dur = int(act.get("duration_minutes") or 0)
+            intensity = _safe_str(act.get("intensity") or "").lower()
             steps = int(act.get("steps") or 0)
 
-            steps_str = f" ({steps:,} passi)".replace(",", ".") if steps > 0 else ""
-            line = f"• Giorno {d_str} - {a_type} {dur} min{steps_str}"
+            details: list[str] = []
+            if intensity:
+                details.append(f"intensità {intensity}")
+            if steps > 0 and a_type.upper() == "CAMMINATA":
+                details.append(f"{steps:,} passi".replace(",", "."))
+            extra_str = f" ({', '.join(details)})" if details else ""
+            line = f"• Giorno {d_str} - {a_type} {dur} min{extra_str}"
             page.insert_text(fitz.Point(MARGIN_LEFT + 6.0, self.y), line[:75], fontsize=8.5, fontname="helv", color=COLOR_TEXT_MAIN)
             self.y += 13.5
 

@@ -518,7 +518,7 @@ async def run_chat_pipeline(
             "\n\n[DIRETTIVA DI SICUREZZA CLINICA: L'utente sta chiedendo un'indicazione posologica, "
             "prescrittiva o una modifica della terapia. NON suggerire dosaggi numerici o cambi di farmaco; "
             "spiega i principi educativi generali e raccomanda di concordare qualsiasi decisione "
-            "con il proprio medico curante o diabetologo {{MEDICO}}.]"
+            "con il proprio medico curante o diabetologo [COGNOME_MEDICO].]"
         )
         chat_history[-1] = ChatMessage(
             role="user",
@@ -899,7 +899,7 @@ async def stream_chat_pipeline(
             "\n\n[DIRETTIVA DI SICUREZZA CLINICA: L'utente sta chiedendo un'indicazione posologica, "
             "prescrittiva o una modifica della terapia. NON suggerire dosaggi numerici o cambi di farmaco; "
             "spiega i principi educativi generali e raccomanda di concordare qualsiasi decisione "
-            "con il proprio medico curante o diabetologo {{MEDICO}}.]"
+            "con il proprio medico curante o diabetologo [COGNOME_MEDICO].]"
         )
         chat_history[-1] = ChatMessage(
             role="user",
@@ -1046,11 +1046,11 @@ async def stream_chat_pipeline(
             accumulated_raw.append(chunk)
             buffer += chunk
 
-            # 1. Buffer di sicurezza anti-spezzamento placeholder (es: '{{NO' ... 'ME}}')
-            if "{{" in buffer and "}}" not in buffer[buffer.rfind("{{") :]:
-                safe_pos = buffer.rfind("{{")
-                ready_to_emit = buffer[:safe_pos]
-                buffer = buffer[safe_pos:]
+            # 1. Buffer di sicurezza anti-spezzamento placeholder (es: '[NOME_PAZ' ... 'IENTE]')
+            open_bracket = buffer.rfind("[")
+            if open_bracket != -1 and "]" not in buffer[open_bracket:] and (len(buffer) - open_bracket) <= 32:
+                ready_to_emit = buffer[:open_bracket]
+                buffer = buffer[open_bracket:]
             else:
                 # 2. Sanitizzazione a confini di frase per intercettare imperativi vietati
                 # Cerca delimitatori naturali di frase: punto, esclamativo, interrogativo, a capo

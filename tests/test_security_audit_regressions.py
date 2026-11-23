@@ -121,7 +121,10 @@ def test_multi_turn_assistant_pii_scrubbed_before_llm(monkeypatch):
         async def chat_with_usage(self, messages, *, system=None, **k):
             captured_messages.extend(messages)
             from vitality_be.llm.base import LLMChatResult
-            return LLMChatResult(text="Certo {{NOME}}, ne parli con {{MEDICO}}.", tokens_used=42)
+            return LLMChatResult(
+                text="Certo [NOME_PAZIENTE], ne parli con Dott. [NOME_MEDICO] [COGNOME_MEDICO].",
+                tokens_used=42,
+            )
 
     class FakeDb:
         def rpc(self, _fn, _p=None):
@@ -428,3 +431,71 @@ def test_delete_all_chat_sessions_route_is_unique():
         r for r in router.routes if getattr(r, "path", None) == "/chat/sessions" and "DELETE" in getattr(r, "methods", set())
     ]
     assert len(delete_all_routes) == 1
+
+
+def test_uniform_bracket_scrubbing_and_activity_steps_only_for_walking():
+    from vitality_be.services.extractor import _build_proposed_entry
+    from vitality_be.schemas.extraction import RawExtractedItem
+    from vitality_be.services.patient_context import (
+        PatientMaskingMap,
+        mask_user_text_with_dynamic_tokens,
+        rehydrate_assistant_reply,
+    )
+
+    # 1. Omonimia paziente/medico: "Roberto" è sia il nome del paziente sia del medico
+    initial = PatientMaskingMap(first_name="Roberto", last_name="Bianchi")
+    scrubbed, updated = mask_user_text_with_dynamic_tokens(
+        "Sono Roberto Bianchi, ho appuntamento con Dott. Roberto Galli e poi con Dott.ssa Verdi.",
+        initial,
+    )
+    assert "Roberto" not in scrubbed
+    assert "Bianchi" not in scrubbed
+    assert "Galli" not in scrubbed
+    assert "Verdi" not in scrubbed
+    assert "[NOME_PAZIENTE] [COGNOME_PAZIENTE]" in scrubbed
+    assert "Dott. [NOME_MEDICO] [COGNOME_MEDICO]" in scrubbed
+    assert "Dott.ssa [COGNOME_MEDICO_2]" in scrubbed
+    assert "{{" not in scrubbed and "}}" not in scrubbed
+
+    rehydrated = rehydrate_assistant_reply(
+        "Ciao [NOME_PAZIENTE], confermato con Dott. [NOME_MEDICO] [COGNOME_MEDICO] e Dott.ssa [COGNOME_MEDICO_2].",
+        updated,
+    )
+    assert rehydrated == "Ciao Roberto, confermato con Dott. Roberto Galli e Dott.ssa Verdi."
+
+    # 2. Passi ammessi SOLO su CAMMINATA, rimossi su tutte le altre attività; intensità sempre valorizzata
+    walk = _build_proposed_entry(
+        RawExtractedItem(
+            target_table="physical_activities",
+            activity_type="CAMMINATA",
+            duration_minutes=45,
+            intensity="MODERATA",
+            steps=5200,
+        ),
+        index=0,
+        fallback_iso="2026-11-21T10:00:00+01:00",
+        source_user_text="Ho camminato 45 minuti facendo 5200 passi",
+        active_therapies=(),
+        masking_map=None,
+    )
+    assert walk is not None
+    assert walk.data["steps"] == 5200
+    assert walk.data["intensity"] == "MODERATA"
+
+    swim = _build_proposed_entry(
+        RawExtractedItem(
+            target_table="physical_activities",
+            activity_type="NUOTO",
+            duration_minutes=30,
+            intensity="INTENSA",
+            steps=3000,
+        ),
+        index=1,
+        fallback_iso="2026-11-21T10:00:00+01:00",
+        source_user_text="Ho nuotato 30 minuti intensi",
+        active_therapies=(),
+        masking_map=None,
+    )
+    assert swim is not None
+    assert swim.data["steps"] is None
+    assert swim.data["intensity"] == "INTENSA"

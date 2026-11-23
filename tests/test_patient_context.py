@@ -13,8 +13,11 @@ def _inline_to_thread(monkeypatch):
     monkeypatch.setattr(asyncio, "to_thread", _run_sync)
 
 from vitality_be.services.patient_context import (
+    TOKEN_DOCTOR_FIRST_NAME,
     TOKEN_DOCTOR_NAME,
+    TOKEN_DOCTOR_SURNAME,
     TOKEN_PATIENT_NAME,
+    TOKEN_PATIENT_SURNAME,
     PatientMaskingMap,
     build_dual_rag_message,
     calculate_age_years,
@@ -86,35 +89,55 @@ def test_scrub_free_text_and_rehydrate_reply():
         first_name="Mario",
         last_name="Rossi",
         primary_doctor="Dott.ssa Verdi",
-        doctor_tokens={TOKEN_DOCTOR_NAME: "Dott.ssa Verdi", "{{MEDICO_2}}": "Prof. Neri"},
+        doctor_tokens={
+            TOKEN_DOCTOR_SURNAME: "Verdi",
+            "[NOME_MEDICO_2]": "Paolo",
+            "[COGNOME_MEDICO_2]": "Neri",
+        },
     )
     dirty = (
         "Sono Mario Rossi, la mia mail è mario.rossi@example.com, "
-        "cell 333 1234567, CF RSSMRA60E20H501Z, seguito da Dott.ssa Verdi."
+        "cell 333 1234567, CF RSSMRA60E20H501Z, seguito da Dott.ssa Verdi e Prof. Paolo Neri."
     )
     cleaned = scrub_free_text(dirty, m)
-    assert "Mario Rossi" not in cleaned
+    assert "Mario" not in cleaned
     assert "Rossi" not in cleaned
     assert "mario.rossi@example.com" not in cleaned
     assert "333 1234567" not in cleaned
     assert "RSSMRA60E20H501Z" not in cleaned
-    assert "Dott.ssa Verdi" not in cleaned
+    assert "Verdi" not in cleaned
+    assert "Paolo" not in cleaned
+    assert "Neri" not in cleaned
     assert TOKEN_PATIENT_NAME in cleaned
-    assert TOKEN_DOCTOR_NAME in cleaned
+    assert TOKEN_PATIENT_SURNAME in cleaned
+    assert TOKEN_DOCTOR_SURNAME in cleaned
+    assert "[NOME_MEDICO_2]" in cleaned
+    assert "[COGNOME_MEDICO_2]" in cleaned
 
-    llm_out = "Ciao {{NOME}}! Ottimo lavoro oggi. Parlane con {{MEDICO}} o con {{MEDICO_2}} alla visita."
+    llm_out = (
+        "Ciao [NOME_PAZIENTE]! Ottimo lavoro oggi. "
+        "Parlane con Dott.ssa [COGNOME_MEDICO] o con Prof. [NOME_MEDICO_2] [COGNOME_MEDICO_2] alla visita."
+    )
     rehydrated = rehydrate_assistant_reply(llm_out, m)
     assert rehydrated == (
-        "Ciao Mario! Ottimo lavoro oggi. Parlane con Dott.ssa Verdi o con Prof. Neri alla visita."
+        "Ciao Mario! Ottimo lavoro oggi. Parlane con Dott.ssa Verdi o con Prof. Paolo Neri alla visita."
     )
+
+    # Se il modello emette [NOME_MEDICO] ma il medico ha solo il cognome mappato -> nessuna duplicazione
+    single_surname = rehydrate_assistant_reply(
+        "Parlane con Dott.ssa [NOME_MEDICO] [COGNOME_MEDICO].",
+        m,
+    )
+    assert single_surname == "Parlane con Dott.ssa Verdi."
 
     # Caso senza nome o medico salvato nel DB -> pulizia elegante dei segnaposto
     empty_rehydrated = rehydrate_assistant_reply(
-        "Buongiorno, {{NOME}}! Ricordati di sentire {{MEDICO}}.",
+        "Buongiorno, [NOME_PAZIENTE]! Ricordati di sentire Dott. [NOME_MEDICO] [COGNOME_MEDICO].",
         PatientMaskingMap(),
     )
-    assert "{{NOME}}" not in empty_rehydrated
-    assert "{{MEDICO}}" not in empty_rehydrated
+    assert "[NOME_PAZIENTE]" not in empty_rehydrated
+    assert "[NOME_MEDICO]" not in empty_rehydrated
+    assert "[COGNOME_MEDICO]" not in empty_rehydrated
     assert empty_rehydrated == "Buongiorno! Ricordati di sentire il tuo medico di riferimento."
 
 
@@ -219,7 +242,9 @@ async def test_fetch_patient_context_full_and_zero_pii_leak():
     assert "Età: 62 anni" in xml
     assert "IMC 27.2 kg/m² - sovrappeso" in xml
     assert TOKEN_PATIENT_NAME in xml
-    assert TOKEN_DOCTOR_NAME in xml
+    assert TOKEN_PATIENT_SURNAME in xml
+    assert TOKEN_DOCTOR_FIRST_NAME in xml
+    assert TOKEN_DOCTOR_SURNAME in xml
     assert "media 130 mg/dL (min 64, max 195 mg/dL | in range 70-180: 1, ipoglicemie <70: 1, iperglicemie >180: 1)" in xml
     assert "HbA1c (Emoglobina Glicata): 6.9 %" in xml
     assert "eGFR (Filtrato Glomerulare): 78 mL/min/1.73m²" in xml
@@ -275,7 +300,7 @@ async def test_chat_reply_dual_rag_scrubs_input_and_rehydrates_output():
     class CapturingLLM:
         async def chat(self, messages: list[ChatMessage], *, system: str | None = None) -> str:
             captured.append((messages, system))
-            return "Ciao {{NOME}}! La tua HbA1c è buona. Ne parlerai con {{MEDICO}} alla prossima visita."
+            return "Ciao [NOME_PAZIENTE]! La tua HbA1c è buona. Ne parlerai con Dott.ssa [NOME_MEDICO] [COGNOME_MEDICO] alla prossima visita."
 
     class DualFakeDb(FakePatientDb):
         def rpc(self, fn_name: str, _params: dict):

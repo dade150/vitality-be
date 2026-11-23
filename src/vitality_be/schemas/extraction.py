@@ -6,7 +6,7 @@ Allineati rigorosamente ai tipi ENUM e alle tabelle PostgreSQL/Supabase document
   (eGFR, UACR) e profilo lipidico (Colesterolo Totale, HDL, LDL, Trigliceridi).
 - `meals`: diario alimentare con flag obbligatorio `is_estimated` per stime LARN.
 - `physical_activities`: sessioni di movimento con gestione campi mancanti (es. durata).
-- `appointments`: visite mediche con supporto a token reversibili `{{MEDICO}}`.
+- `appointments`: visite mediche con supporto a token reversibili `[NOME_MEDICO]` / `[COGNOME_MEDICO]`.
 - `therapy_logs` e `therapies`: registro assunzioni e piano terapeutico.
 - `profile`: aggiornamenti di peso e altezza.
 - `patient_reports`: estrazione strutturata da testo o foto/PDF di referti clinici.
