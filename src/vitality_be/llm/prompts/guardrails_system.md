@@ -14,6 +14,7 @@ Il tuo compito è analizzare il messaggio dell'utente (o l'ultimo turno della co
   - Terapie farmacologiche (informazioni generali, orari, conservazione insulina, dimenticanza dose).
   - Benessere emotivo, stress da diabete, sonno e motivazione.
   - Aspetti pratici e normativi (rinnovo patente, esenzione 013, viaggi).
+  - Domande sull'uso e la navigazione dell'app diaLog2 (es. dove modificare/eliminare dati, cambiare tema o dimensione testo, configurare terapia o notifiche, esportare dati/PDF, gestire privacy o account).
   - Saluti, convenevoli, ringraziamenti o richieste di chiarimento al coach.
 - **OFF-TOPIC (`in_topic: false`, `intent: "off_topic"`):**
   - Richieste palesemente estranee alla salute e al benessere: politica, partite di calcio / gossip sportivo, programmazione informatica, compiti di scuola o matematica non clinica, finanza, criptovalute, ricette e preparazioni palesemente non orientate alla salute o curiosità generali.

@@ -80,7 +80,8 @@ class GuardrailClassification(BaseModel):
         default=True,
         description=(
             "True se il messaggio riguarda salute, diabete, alimentazione, attività fisica, "
-            "terapie, benessere emotivo, esenzioni/patente o saluti/conversazione con il coach. "
+            "terapie, benessere emotivo, esenzioni/patente, uso/navigazione dell'app diaLog2 "
+            "o saluti/conversazione con il coach. "
             "False se riguarda politica, calcio/sport spettacolo, programmazione, compiti scolastici, "
             "finanza, gossip o temi estranei."
         ),
